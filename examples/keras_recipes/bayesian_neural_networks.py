@@ -95,7 +95,6 @@ learning_rate = 0.001
 
 
 def run_experiment(model, loss, train_dataset, test_dataset):
-
     model.compile(
         optimizer=keras.optimizers.RMSprop(learning_rate=learning_rate),
         loss=loss,
@@ -215,6 +214,7 @@ to encode weight uncertainty.
 Thus, we need to define prior and the posterior distributions of these weights,
 and the training process is to learn the parameters of these distributions.
 """
+
 
 # Define the prior weight distribution as Normal of mean=0 and stddev=1.
 # Note that, in this example, the we prior distribution is not trainable,
@@ -423,3 +423,8 @@ for idx in range(sample):
         f"95% CI: [{round(upper[idx][0], 2)} - {round(lower[idx][0], 2)}]"
         f" - Actual: {targets[idx]}"
     )
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 5: Fundamentals of machine learning](https://deeplearningwithpython.io/chapters/chapter05_fundamentals-of-ml)
+"""

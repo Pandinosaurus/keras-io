@@ -37,11 +37,14 @@ keeping the generated image close enough to the original one.
 """
 ## Setup
 """
+import os
 
+os.environ["KERAS_BACKEND"] = "tensorflow"
+
+import keras
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.applications import vgg19
+from keras.applications import vgg19
 
 base_image_path = keras.utils.get_file("paris.jpg", "https://i.imgur.com/F28w3Ac.jpg")
 style_reference_image_path = keras.utils.get_file(
@@ -75,9 +78,7 @@ display(Image(style_reference_image_path))
 
 def preprocess_image(image_path):
     # Util function to open, resize and format pictures into appropriate tensors
-    img = keras.utils.load_img(
-        image_path, target_size=(img_nrows, img_ncols)
-    )
+    img = keras.utils.load_img(image_path, target_size=(img_nrows, img_ncols))
     img = keras.utils.img_to_array(img)
     img = np.expand_dims(img, axis=0)
     img = vgg19.preprocess_input(img)
@@ -272,8 +273,6 @@ After 4000 iterations, you get the following result:
 display(Image(result_prefix + "_at_iteration_4000.png"))
 
 """
-**Example available on HuggingFace**
-Trained Model | Demo 
---- | --- 
-[![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Model-Neural%20style%20transfer-black.svg)](https://huggingface.co/keras-io/VGG19) | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Neural%20style%20transfer-black.svg)](https://huggingface.co/spaces/keras-io/neural-style-transfer)
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
 """

@@ -57,7 +57,7 @@ overview of both algorithms as presented in the paper:
 
 
 **Note:** DDPM is just one way of implementing a diffusion model. Also, the sampling
-algorithm in the DDPM replicates the complete Markov chain. Hence it's slow in
+algorithm in the DDPM replicates the complete Markov chain. Hence, it's slow in
 generating new samples compared to other generative models like GANs. Lots of research
 efforts have been made to address this issue. One such example is Denoising Diffusion
 Implicit Models, or DDIM for short, where the authors replaced the Markov chain with a
@@ -365,7 +365,7 @@ class GaussianDiffusion:
         return model_mean, posterior_variance, posterior_log_variance
 
     def p_sample(self, pred_noise, x, t, clip_denoised=True):
-        """Sample from the diffuison model.
+        """Sample from the diffusion model.
 
         Args:
             pred_noise: Noise predicted by the diffusion model
@@ -812,4 +812,9 @@ other schemes like cosine scheduling and compare the performance.
 4. [Denoising Diffusion Implicit Models](https://keras.io/examples/generative/ddim/)
 5. [Annotated Diffusion Model](https://huggingface.co/blog/annotated-diffusion)
 6. [AIAIART](https://www.youtube.com/watch?v=XTs7M6TSK9I&t=14s)
+"""
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
 """

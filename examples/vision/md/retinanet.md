@@ -2,7 +2,7 @@
 
 **Author:** [Srihari Humbarwadi](https://twitter.com/srihari_rh)<br>
 **Date created:** 2020/05/17<br>
-**Last modified:** 2020/07/14<br>
+**Last modified:** 2023/07/10<br>
 **Description:** Implementing RetinaNet: Focal Loss for Dense Object Detection.
 
 
@@ -884,7 +884,7 @@ resnet50_backbone = get_backbone()
 loss_fn = RetinaNetLoss(num_classes)
 model = RetinaNet(num_classes, resnet50_backbone)
 
-optimizer = tf.optimizers.SGD(learning_rate=learning_rate_fn, momentum=0.9)
+optimizer = tf.keras.optimizers.legacy.SGD(learning_rate=learning_rate_fn, momentum=0.9)
 model.compile(loss=loss_fn, optimizer=optimizer)
 ```
 
@@ -1074,3 +1074,7 @@ Example available on HuggingFace.
 | Trained Model | Demo |
 | :--: | :--: |
 | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Model-Object%20Detection%20With%20Retinanet-black.svg)](https://huggingface.co/keras-io/Object-Detection-RetinaNet) | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Object%20Detection%20With%20Retinanet-black.svg)](https://huggingface.co/spaces/keras-io/Object-Detection-Using-RetinaNet) |
+
+---
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 12: Object detection](https://deeplearningwithpython.io/chapters/chapter12_object-detection)

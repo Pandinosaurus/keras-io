@@ -755,7 +755,7 @@ looking molecules! Notice, in contrast to the
 molecules in this tutorial seems really high, which is great!
 
 **What we've learned, and prospects**. In this tutorial, a generative model for molecular
-graphs was succesfully implemented, which allowed us to generate novel molecules. In the
+graphs was successfully implemented, which allowed us to generate novel molecules. In the
 future, it would be interesting to implement generative models that can modify existing
 molecules (for instance, to optimize solubility or protein-binding of an existing
 molecule). For that however, a reconstruction loss would likely be needed, which is
@@ -767,3 +767,7 @@ Example available on HuggingFace
 | Trained Model | Demo |
 | :--: | :--: |
 | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Model-wgan%20graphs-black.svg)](https://huggingface.co/keras-io/wgan-molecular-graphs) | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-wgan%20graphs-black.svg)](https://huggingface.co/spaces/keras-io/Generating-molecular-graphs-by-WGAN-GP) |
+
+---
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)

@@ -6,6 +6,7 @@ Last modified: 2020/08/07
 Description: Loading TFRecords for computer vision models.
 Accelerator: TPU
 """
+
 """
 ## Introduction + Set Up
 
@@ -259,3 +260,8 @@ def show_batch_predictions(image_batch):
 image_batch = next(iter(test_dataset))
 
 show_batch_predictions(image_batch)
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 6: The universal workflow of machine learning](https://deeplearningwithpython.io/chapters/chapter06_universal-workflow-of-ml)
+"""

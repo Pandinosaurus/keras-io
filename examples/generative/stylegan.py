@@ -6,6 +6,7 @@ Last modified: 2021/07/01
 Description: Implementation of StyleGAN for image generation.
 Accelerator: GPU
 """
+
 """
 ## Introduction
 
@@ -14,7 +15,7 @@ images and to incorporate style features in the generative process.This
 [StyleGAN](https://arxiv.org/abs/1812.04948) implementation is based on the book
 [Hands-on Image Generation with TensorFlow](https://www.amazon.com/dp/1838826785).
 The code from the book's
-[Github repository](https://github.com/PacktPublishing/Hands-On-Image-Generation-with-TensorFlow-2.0/tree/master/Chapter07)
+[GitHub repository](https://github.com/PacktPublishing/Hands-On-Image-Generation-with-TensorFlow-2.0/tree/master/Chapter07)
 was refactored to leverage a custom `train_step()` to enable
 faster training time via compilation and distribution.
 """
@@ -31,13 +32,9 @@ pip install tensorflow_addons
 """
 
 import os
-import random
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-from enum import Enum
-from glob import glob
 from functools import partial
 
 import tensorflow as tf
@@ -83,9 +80,8 @@ ds_train = keras.utils.image_dataset_from_directory(
 )
 
 
-
 def resize_image(res, image):
-    # only donwsampling, so use nearest neighbor that is faster to run
+    # only downsampling, so use nearest neighbor that is faster to run
     image = tf.image.resize(
         image, (res, res), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR
     )
@@ -373,7 +369,6 @@ class Generator:
             rgb = self.to_rgb[0](x)
         else:
             for i in range(1, num_stages - 1):
-
                 x = self.g_blocks[i]([x, w[:, i], self.noise_inputs[i]])
 
             old_rgb = self.to_rgb[num_stages - 2](x)
@@ -551,7 +546,6 @@ class StyleGAN(tf.keras.Model):
         return loss
 
     def train_step(self, real_images):
-
         self.train_step_counter.assign_add(1)
 
         if self.phase == "TRANSITION":
@@ -665,9 +659,9 @@ TARGET_RES = 128
 style_gan = StyleGAN(start_res=START_RES, target_res=TARGET_RES)
 
 """
-The training for each new resolution happen in two phases - "transition" and "stable".
+The training for each new resolution happens in two phases - "transition" and "stable".
 In the transition phase, the features from the previous resolution are mixed with the
-current resolution. This allows for a smoother transition when scalling up. We use each
+current resolution. This allows for a smoother transition when scaling up. We use each
 epoch in `model.fit()` as a phase.
 """
 
@@ -776,3 +770,8 @@ image_row = np.hstack([images[0], images[1], mix_images[0]])
 plt.figure(figsize=(9, 3))
 plt.imshow(image_row)
 plt.axis("off")
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
+"""

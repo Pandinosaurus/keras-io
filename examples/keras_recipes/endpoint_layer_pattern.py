@@ -2,7 +2,7 @@
 Title: Endpoint layer pattern
 Author: [fchollet](https://twitter.com/fchollet)
 Date created: 2019/05/10
-Last modified: 2019/05/10
+Last modified: 2023/11/22
 Description: Demonstration of the "endpoint layer" pattern (layer that handles loss management).
 Accelerator: GPU
 """
@@ -11,8 +11,12 @@ Accelerator: GPU
 ## Setup
 """
 
+import os
+
+os.environ["KERAS_BACKEND"] = "tensorflow"
+
 import tensorflow as tf
-from tensorflow import keras
+import keras
 import numpy as np
 
 """
@@ -111,3 +115,8 @@ data = {
 
 model.compile(keras.optimizers.Adam(1e-3))
 model.fit(data, epochs=2)
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 7: A deep dive on Keras](https://deeplearningwithpython.io/chapters/chapter07_deep-dive-keras)
+"""

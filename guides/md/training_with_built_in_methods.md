@@ -2,7 +2,7 @@
 
 **Author:** [fchollet](https://twitter.com/fchollet)<br>
 **Date created:** 2019/03/01<br>
-**Last modified:** 2023/03/20<br>
+**Last modified:** 2023/06/25<br>
 **Description:** Complete guide to training & evaluation with `fit()` and `evaluate()`.
 
 
@@ -15,9 +15,15 @@
 
 
 ```python
+# We import torch & TF so as to use torch Dataloaders & tf.data.Datasets.
+import torch
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+
+import os
+import numpy as np
+import keras
+from keras import layers
+from keras import ops
 ```
 
 ---
@@ -28,28 +34,37 @@ when using built-in APIs for training & validation (such as `Model.fit()`,
 `Model.evaluate()` and `Model.predict()`).
 
 If you are interested in leveraging `fit()` while specifying your
-own training step function, see the
-[Customizing what happens in `fit()` guide](/guides/customizing_what_happens_in_fit/).
+own training step function, see the guides on customizing what happens in `fit()`:
+
+- [Writing a custom train step with TensorFlow](/guides/custom_train_step_in_tensorflow/)
+- [Writing a custom train step with JAX](/guides/custom_train_step_in_jax/)
+- [Writing a custom train step with PyTorch](/guides/custom_train_step_in_torch/)
 
 If you are interested in writing your own training & evaluation loops from
-scratch, see the guide
-["writing a training loop from scratch"](/guides/writing_a_training_loop_from_scratch/).
+scratch, see the guides on writing training loops:
+
+- [Writing a training loop with TensorFlow](/guides/writing_a_custom_training_loop_in_tensorflow/)
+- [Writing a training loop with JAX](/guides/writing_a_custom_training_loop_in_jax/)
+- [Writing a training loop with PyTorch](/guides/writing_a_custom_training_loop_in_torch/)
 
 In general, whether you are using built-in loops or writing your own, model training &
 evaluation works strictly in the same way across every kind of Keras model --
 Sequential models, models built with the Functional API, and models written from
 scratch via model subclassing.
 
-This guide doesn't cover distributed training, which is covered in our
-[guide to multi-GPU & distributed training](https://keras.io/guides/distributed_training/).
-
 ---
 ## API overview: a first end-to-end example
 
-When passing data to the built-in training loops of a model, you should either use
-**NumPy arrays** (if your data is small and fits in memory) or **`tf.data.Dataset`
-objects**. In the next few paragraphs, we'll use the MNIST dataset as NumPy arrays, in
-order to demonstrate how to use optimizers, losses, and metrics.
+When passing data to the built-in training loops of a model, you should either use:
+
+- NumPy arrays (if your data is small and fits in memory)
+- Subclasses of `keras.utils.PyDataset`
+- `tf.data.Dataset` objects
+- PyTorch `DataLoader` instances
+
+In the next few paragraphs, we'll use the MNIST dataset as NumPy arrays, in
+order to demonstrate how to use optimizers, losses, and metrics. Afterwards, we'll
+take a close look at each of the other options.
 
 Let's consider the following model (here, we build in with the Functional API, but it
 could be a Sequential model or a subclassed model as well):
@@ -103,13 +118,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 We call `fit()`, which will train the model by slicing the data into "batches" of size
 `batch_size`, and repeatedly iterating over the entire dataset for a given number of
 `epochs`.
@@ -133,9 +141,9 @@ history = model.fit(
 ```
 Fit model on training data
 Epoch 1/2
-782/782 [==============================] - 1s 787us/step - loss: 0.3439 - sparse_categorical_accuracy: 0.9021 - val_loss: 0.1775 - val_sparse_categorical_accuracy: 0.9505
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 955us/step - loss: 0.5740 - sparse_categorical_accuracy: 0.8368 - val_loss: 0.2040 - val_sparse_categorical_accuracy: 0.9420
 Epoch 2/2
-782/782 [==============================] - 1s 672us/step - loss: 0.1649 - sparse_categorical_accuracy: 0.9510 - val_loss: 0.1440 - val_sparse_categorical_accuracy: 0.9599
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 0s 390us/step - loss: 0.1745 - sparse_categorical_accuracy: 0.9492 - val_loss: 0.1415 - val_sparse_categorical_accuracy: 0.9581
 
 ```
 </div>
@@ -144,18 +152,12 @@ during training:
 
 
 ```python
-history.history
+print(history.history)
 ```
-
-
-
 
 <div class="k-default-codeblock">
 ```
-{'loss': [0.3438594937324524, 0.16489940881729126],
- 'sparse_categorical_accuracy': [0.9021199941635132, 0.9510200023651123],
- 'val_loss': [0.17748108506202698, 0.1440342217683792],
- 'val_sparse_categorical_accuracy': [0.9505000114440918, 0.9599000215530396]}
+{'loss': [0.34448376297950745, 0.16419583559036255], 'sparse_categorical_accuracy': [0.9008600115776062, 0.9509199857711792], 'val_loss': [0.20404714345932007, 0.14145156741142273], 'val_sparse_categorical_accuracy': [0.9419999718666077, 0.9581000208854675]}
 
 ```
 </div>
@@ -178,10 +180,10 @@ print("predictions shape:", predictions.shape)
 <div class="k-default-codeblock">
 ```
 Evaluate on test data
-79/79 [==============================] - 0s 454us/step - loss: 0.1472 - sparse_categorical_accuracy: 0.9549
-test loss, test acc: [0.1472143679857254, 0.9549000263214111]
+ 79/79 ━━━━━━━━━━━━━━━━━━━━ 0s 271us/step - loss: 0.1670 - sparse_categorical_accuracy: 0.9489
+test loss, test acc: [0.1484374850988388, 0.9550999999046326]
 Generate predictions for 3 samples
-1/1 [==============================] - 0s 32ms/step
+ 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 33ms/step
 predictions shape: (3, 10)
 
 ```
@@ -205,13 +207,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 The `metrics` argument should be a list -- your model can have any number of metrics.
 
 If your model has multiple outputs, you can specify different losses and metrics for
@@ -295,30 +290,27 @@ error between the real data and the predictions:
 ```python
 
 def custom_mean_squared_error(y_true, y_pred):
-    return tf.math.reduce_mean(tf.square(y_true - y_pred), axis=-1)
+    return ops.mean(ops.square(y_true - y_pred), axis=-1)
 
 
 model = get_uncompiled_model()
 model.compile(optimizer=keras.optimizers.Adam(), loss=custom_mean_squared_error)
 
 # We need to one-hot encode the labels to use MSE
-y_train_one_hot = tf.one_hot(y_train, depth=10)
+y_train_one_hot = ops.one_hot(y_train, num_classes=10)
 model.fit(x_train, y_train_one_hot, batch_size=64, epochs=1)
 ```
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.Adam`.
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 525us/step - loss: 0.0277
 
-782/782 [==============================] - 1s 667us/step - loss: 0.0159
-
-<keras.callbacks.History at 0x297874ac0>
+<keras.src.callbacks.history.History at 0x2e5dde350>
 
 ```
 </div>
 If you need a loss function that takes in parameters beside `y_true` and `y_pred`, you
-can subclass the `tf.keras.losses.Loss` class and implement the following two methods:
+can subclass the `keras.losses.Loss` class and implement the following two methods:
 
 - `__init__(self)`: accept parameters to pass during the call of your loss function
 - `call(self, y_true, y_pred)`: use the targets (y_true) and the model predictions
@@ -341,95 +333,31 @@ class CustomMSE(keras.losses.Loss):
         self.regularization_factor = regularization_factor
 
     def call(self, y_true, y_pred):
-        mse = tf.math.reduce_mean(tf.square(y_true - y_pred), axis=-1)
-        reg = tf.math.reduce_mean(tf.square(0.5 - y_pred), axis=-1)
+        mse = ops.mean(ops.square(y_true - y_pred), axis=-1)
+        reg = ops.mean(ops.square(0.5 - y_pred), axis=-1)
         return mse + reg * self.regularization_factor
 
 
 model = get_uncompiled_model()
 model.compile(optimizer=keras.optimizers.Adam(), loss=CustomMSE())
 
-y_train_one_hot = tf.one_hot(y_train, depth=10)
+y_train_one_hot = ops.one_hot(y_train, num_classes=10)
 model.fit(x_train, y_train_one_hot, batch_size=64, epochs=1)
+
 ```
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.Adam`.
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 532us/step - loss: 0.0492
 
-782/782 [==============================] - 1s 688us/step - loss: 0.0387
-
-<keras.callbacks.History at 0x29d6d5990>
-
-```
-</div>
-Alternatively you could implement the loss function as a method,
-and use the `LossFunctionWrapper` to turn it into a class.
-This wrapper is a subclass of `tf.keras.losses.Loss` which handles the parsing of
-extra arguments by passing them to the `call()` and config methods.
-
-The `LossFunctionWrapper`'s `__init__()` method takes the following arguments:
-
-- `fn`: The loss function to wrap, with signature `fn(y_true, y_pred, **kwargs)`.
-- `reduction`: Type of [`tf.keras.losses.Reduction`](https://www.tensorflow.org/api_docs/python/tf/keras/losses/Reduction) to apply to loss.
-- `name`: Optional name for the instance.
-- Any other parameters will be passed to `fn` as `kwargs` through the `call()` method.
-
-We could implement the previous `CustomMSE` class using `LossFunctionWrapper`:
-
-
-```python
-
-from keras import losses
-
-
-def custom_mean_squared_error_expended(y_true, y_pred, regularization_factor=0.1):
-    mse = tf.math.reduce_mean(tf.square(y_true - y_pred), axis=-1)
-    reg = tf.math.reduce_mean(tf.square(0.5 - y_pred), axis=-1)
-    return mse + reg * regularization_factor
-
-
-class WrappedCustomMSE(losses.LossFunctionWrapper):
-    def __init__(
-        self,
-        reduction=tf.keras.losses.Reduction.AUTO,
-        name="custom_mse_with_regularization",
-        regularization_factor=0.1,
-    ):
-        super().__init__(
-            custom_mean_squared_error_expended,
-            name=name,
-            reduction=reduction,
-            regularization_factor=regularization_factor,
-        )
-
-
-model = get_uncompiled_model()
-model.compile(
-    optimizer=keras.optimizers.Adam(),
-    loss=WrappedCustomMSE(regularization_factor=0.2, name="mse_custom_0_2"),
-)
-
-y_train_one_hot = tf.one_hot(y_train, depth=10)
-model.fit(x_train, y_train_one_hot, batch_size=64, epochs=1)
-```
-
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.Adam`.
-
-782/782 [==============================] - 1s 685us/step - loss: 0.0610
-
-<keras.callbacks.History at 0x297a1eec0>
+<keras.src.callbacks.history.History at 0x2e5d0d360>
 
 ```
 </div>
 ### Custom metrics
 
 If you need a metric that isn't part of the API, you can easily create custom metrics
-by subclassing the `tf.keras.metrics.Metric` class. You will need to implement 4
+by subclassing the `keras.metrics.Metric` class. You will need to implement 4
 methods:
 
 - `__init__(self)`, in which you will create state variables for your metric.
@@ -451,19 +379,21 @@ that counts how many samples were correctly classified as belonging to a given c
 class CategoricalTruePositives(keras.metrics.Metric):
     def __init__(self, name="categorical_true_positives", **kwargs):
         super().__init__(name=name, **kwargs)
-        self.true_positives = self.add_weight(name="ctp", initializer="zeros")
+        self.true_positives = self.add_variable(
+            shape=(), name="ctp", initializer="zeros"
+        )
 
     def update_state(self, y_true, y_pred, sample_weight=None):
-        y_pred = tf.reshape(tf.argmax(y_pred, axis=1), shape=(-1, 1))
-        values = tf.cast(y_true, "int32") == tf.cast(y_pred, "int32")
-        values = tf.cast(values, "float32")
+        y_pred = ops.reshape(ops.argmax(y_pred, axis=1), (-1, 1))
+        values = ops.cast(y_true, "int32") == ops.cast(y_pred, "int32")
+        values = ops.cast(values, "float32")
         if sample_weight is not None:
-            sample_weight = tf.cast(sample_weight, "float32")
-            values = tf.multiply(values, sample_weight)
-        self.true_positives.assign_add(tf.reduce_sum(values))
+            sample_weight = ops.cast(sample_weight, "float32")
+            values = ops.multiply(values, sample_weight)
+        self.true_positives.assign_add(ops.sum(values))
 
     def result(self):
-        return self.true_positives
+        return self.true_positives.value
 
     def reset_state(self):
         # The state of the metric will be reset at the start of each epoch.
@@ -481,17 +411,14 @@ model.fit(x_train, y_train, batch_size=64, epochs=3)
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
 Epoch 1/3
-782/782 [==============================] - 1s 607us/step - loss: 0.3355 - categorical_true_positives: 45233.0000
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 568us/step - categorical_true_positives: 180967.9219 - loss: 0.5876
 Epoch 2/3
-782/782 [==============================] - 0s 605us/step - loss: 0.1532 - categorical_true_positives: 47746.0000
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 0s 377us/step - categorical_true_positives: 182141.9375 - loss: 0.1733
 Epoch 3/3
-782/782 [==============================] - 0s 608us/step - loss: 0.1125 - categorical_true_positives: 48304.0000
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 0s 377us/step - categorical_true_positives: 182303.5312 - loss: 0.1180
 
-<keras.callbacks.History at 0x2c7ddb8b0>
+<keras.src.callbacks.history.History at 0x2e5f02d10>
 
 ```
 </div>
@@ -513,7 +440,7 @@ this layer is just for the sake of providing a concrete example):
 
 class ActivityRegularizationLayer(layers.Layer):
     def call(self, inputs):
-        self.add_loss(tf.reduce_sum(inputs) * 0.1)
+        self.add_loss(ops.sum(inputs) * 0.1)
         return inputs  # Pass-through layer.
 
 
@@ -539,45 +466,9 @@ model.fit(x_train, y_train, batch_size=64, epochs=1)
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 505us/step - loss: 3.4083
 
-782/782 [==============================] - 1s 596us/step - loss: 2.4744
-
-<keras.callbacks.History at 0x2db58d1b0>
-
-```
-</div>
-In the [Functional API](/guides/functional_api/),
-you can also call `model.add_loss(loss_tensor)`.
-
-Here's a simple example:
-
-
-```python
-inputs = keras.Input(shape=(784,), name="digits")
-x1 = layers.Dense(64, activation="relu", name="dense_1")(inputs)
-x2 = layers.Dense(64, activation="relu", name="dense_2")(x1)
-outputs = layers.Dense(10, name="predictions")(x2)
-model = keras.Model(inputs=inputs, outputs=outputs)
-
-model.add_loss(tf.reduce_sum(x1) * 0.1)
-
-model.compile(
-    optimizer=keras.optimizers.RMSprop(1e-3),
-    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-)
-model.fit(x_train, y_train, batch_size=64, epochs=1)
-```
-
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-782/782 [==============================] - 1s 598us/step - loss: 2.5414
-
-<keras.callbacks.History at 0x2db9343a0>
+<keras.src.callbacks.history.History at 0x2e60226b0>
 
 ```
 </div>
@@ -602,7 +493,7 @@ class LogisticEndpoint(keras.layers.Layer):
         self.add_loss(loss)
 
         # Return the inference-time prediction tensor (for `.predict()`).
-        return tf.nn.softmax(logits)
+        return ops.softmax(logits)
 
 ```
 
@@ -611,8 +502,6 @@ You can use it in a model with two inputs (input data & targets), compiled witho
 
 
 ```python
-import numpy as np
-
 inputs = keras.Input(shape=(3,), name="inputs")
 targets = keras.Input(shape=(10,), name="targets")
 logits = keras.layers.Dense(10)(inputs)
@@ -630,9 +519,9 @@ model.fit(data)
 
 <div class="k-default-codeblock">
 ```
-1/1 [==============================] - 0s 220ms/step - loss: 0.7063
+ 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 89ms/step - loss: 0.6982
 
-<keras.callbacks.History at 0x29d2efe50>
+<keras.src.callbacks.history.History at 0x2e5cc91e0>
 
 ```
 </div>
@@ -665,28 +554,29 @@ model.fit(x_train, y_train, batch_size=64, validation_split=0.2, epochs=1)
 
 <div class="k-default-codeblock">
 ```
-625/625 [==============================] - 1s 816us/step - loss: 0.3660 - sparse_categorical_accuracy: 0.8958 - val_loss: 0.2292 - val_sparse_categorical_accuracy: 0.9332
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 1s 563us/step - loss: 0.6161 - sparse_categorical_accuracy: 0.8259 - val_loss: 0.2379 - val_sparse_categorical_accuracy: 0.9302
 
-<keras.callbacks.History at 0x2db58d3f0>
+<keras.src.callbacks.history.History at 0x2e6007610>
 
 ```
 </div>
 ---
-## Training & evaluation from tf.data Datasets
+## Training & evaluation using `tf.data` Datasets
 
 In the past few paragraphs, you've seen how to handle losses, metrics, and optimizers,
 and you've seen how to use the `validation_data` and `validation_split` arguments in
 `fit()`, when your data is passed as NumPy arrays.
 
-Let's now take a look at the case where your data comes in the form of a
-`tf.data.Dataset` object.
+Another option is to use an iterator-like, such as a `tf.data.Dataset`, a
+PyTorch `DataLoader`, or a Keras `PyDataset`. Let's take look at the former.
 
 The `tf.data` API is a set of utilities in TensorFlow 2.0 for loading and preprocessing
-data in a way that's fast and scalable.
+data in a way that's fast and scalable. For a complete guide about creating `Datasets`,
+see the [tf.data documentation](https://www.tensorflow.org/guide/data).
 
-For a complete guide about creating `Datasets`, see the
-[tf.data documentation](https://www.tensorflow.org/guide/data).
-
+**You can use `tf.data` to train your Keras
+models regardless of the backend you're using --
+whether it's JAX, PyTorch, or TensorFlow.**
 You can pass a `Dataset` instance directly to the methods `fit()`, `evaluate()`, and
 `predict()`:
 
@@ -717,15 +607,15 @@ dict(zip(model.metrics_names, result))
 <div class="k-default-codeblock">
 ```
 Epoch 1/3
-782/782 [==============================] - 1s 614us/step - loss: 0.3468 - sparse_categorical_accuracy: 0.9020
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 688us/step - loss: 0.5631 - sparse_categorical_accuracy: 0.8458
 Epoch 2/3
-782/782 [==============================] - 0s 609us/step - loss: 0.1652 - sparse_categorical_accuracy: 0.9513
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 0s 512us/step - loss: 0.1703 - sparse_categorical_accuracy: 0.9484
 Epoch 3/3
-782/782 [==============================] - 0s 617us/step - loss: 0.1197 - sparse_categorical_accuracy: 0.9642
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 0s 506us/step - loss: 0.1187 - sparse_categorical_accuracy: 0.9640
 Evaluate
-157/157 [==============================] - 0s 431us/step - loss: 0.1156 - sparse_categorical_accuracy: 0.9654
+ 157/157 ━━━━━━━━━━━━━━━━━━━━ 0s 622us/step - loss: 0.1380 - sparse_categorical_accuracy: 0.9582
 
-{'loss': 0.11563559621572495, 'sparse_categorical_accuracy': 0.965399980545044}
+{'loss': 0.11913617700338364, 'compile_metrics': 0.965399980545044}
 
 ```
 </div>
@@ -735,10 +625,6 @@ next epoch.
 If you want to run training only on a specific number of batches from this Dataset, you
 can pass the `steps_per_epoch` argument, which specifies how many training steps the
 model should run using this Dataset before moving on to the next epoch.
-
-If you do this, the dataset is not reset at the end of each epoch, instead we just keep
-drawing the next batches. The dataset will eventually run out of data (unless it is an
-infinitely-looping dataset).
 
 
 ```python
@@ -755,19 +641,17 @@ model.fit(train_dataset, epochs=3, steps_per_epoch=100)
 <div class="k-default-codeblock">
 ```
 Epoch 1/3
-100/100 [==============================] - 0s 643us/step - loss: 0.7504 - sparse_categorical_accuracy: 0.8070
+ 100/100 ━━━━━━━━━━━━━━━━━━━━ 0s 508us/step - loss: 1.2000 - sparse_categorical_accuracy: 0.6822 
 Epoch 2/3
-100/100 [==============================] - 0s 630us/step - loss: 0.3575 - sparse_categorical_accuracy: 0.9002
+ 100/100 ━━━━━━━━━━━━━━━━━━━━ 0s 481us/step - loss: 0.4004 - sparse_categorical_accuracy: 0.8827
 Epoch 3/3
-100/100 [==============================] - 0s 629us/step - loss: 0.3147 - sparse_categorical_accuracy: 0.9061
+ 100/100 ━━━━━━━━━━━━━━━━━━━━ 0s 471us/step - loss: 0.3546 - sparse_categorical_accuracy: 0.8968
 
-<keras.callbacks.History at 0x2dc6d0d90>
+<keras.src.callbacks.history.History at 0x2e64df400>
 
 ```
 </div>
-### Using a validation dataset
-
-You can pass a `Dataset` instance as the `validation_data` argument in `fit()`:
+You can also pass a `Dataset` instance as the `validation_data` argument in `fit()`:
 
 
 ```python
@@ -786,9 +670,9 @@ model.fit(train_dataset, epochs=1, validation_data=val_dataset)
 
 <div class="k-default-codeblock">
 ```
-782/782 [==============================] - 1s 767us/step - loss: 0.3285 - sparse_categorical_accuracy: 0.9068 - val_loss: 0.1731 - val_sparse_categorical_accuracy: 0.9512
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 837us/step - loss: 0.5569 - sparse_categorical_accuracy: 0.8508 - val_loss: 0.1711 - val_sparse_categorical_accuracy: 0.9527
 
-<keras.callbacks.History at 0x2deef0790>
+<keras.src.callbacks.history.History at 0x2e641e920>
 
 ```
 </div>
@@ -824,9 +708,9 @@ model.fit(
 
 <div class="k-default-codeblock">
 ```
-782/782 [==============================] - 1s 691us/step - loss: 0.3333 - sparse_categorical_accuracy: 0.9060 - val_loss: 0.3260 - val_sparse_categorical_accuracy: 0.9078
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 771us/step - loss: 0.5562 - sparse_categorical_accuracy: 0.8436 - val_loss: 0.3345 - val_sparse_categorical_accuracy: 0.9062
 
-<keras.callbacks.History at 0x2deef03d0>
+<keras.src.callbacks.history.History at 0x2f9542e00>
 
 ```
 </div>
@@ -839,34 +723,15 @@ ability to index the samples of the datasets, which is not possible in general w
 the `Dataset` API.
 
 ---
-## Other input formats supported
+## Training & evaluation using `PyDataset` instances
 
-Besides NumPy arrays, eager tensors, and TensorFlow `Datasets`, it's possible to train
-a Keras model using Pandas dataframes, or from Python generators that yield batches of
-data & labels.
-
-In particular, the `keras.utils.Sequence` class offers a simple interface to build
-Python data generators that are multiprocessing-aware and can be shuffled.
-
-In general, we recommend that you use:
-
-- NumPy input data if your data is small and fits in memory
-- `Dataset` objects if you have large datasets and you need to do distributed training
-- `Sequence` objects if you have large datasets and you need to do a lot of custom
-Python-side processing that cannot be done in TensorFlow (e.g. if you rely on external libraries
-for data loading or preprocessing).
-
-
----
-## Using a `keras.utils.Sequence` object as input
-
-`keras.utils.Sequence` is a utility that you can subclass to obtain a Python generator with
-two important properties:
+`keras.utils.PyDataset` is a utility that you can subclass to obtain
+a Python generator with two important properties:
 
 - It works well with multiprocessing.
 - It can be shuffled (e.g. when passing `shuffle=True` in `fit()`).
 
-A `Sequence` must implement two methods:
+A `PyDataset` must implement two methods:
 
 - `__getitem__`
 - `__len__`
@@ -876,33 +741,166 @@ If you want to modify your dataset between epochs, you may implement `on_epoch_e
 
 Here's a quick example:
 
+
 ```python
-from skimage.io import imread
-from skimage.transform import resize
-import numpy as np
 
-# Here, `filenames` is list of path to the images
-# and `labels` are the associated labels.
-
-class CIFAR10Sequence(Sequence):
-    def __init__(self, filenames, labels, batch_size):
-        self.filenames, self.labels = filenames, labels
+class ExamplePyDataset(keras.utils.PyDataset):
+    def __init__(self, x, y, batch_size, **kwargs):
+        super().__init__(**kwargs)
+        self.x = x
+        self.y = y
         self.batch_size = batch_size
 
     def __len__(self):
-        return int(np.ceil(len(self.filenames) / float(self.batch_size)))
+        return int(np.ceil(len(self.x) / float(self.batch_size)))
 
     def __getitem__(self, idx):
-        batch_x = self.filenames[idx * self.batch_size:(idx + 1) * self.batch_size]
-        batch_y = self.labels[idx * self.batch_size:(idx + 1) * self.batch_size]
-        return np.array([
-            resize(imread(filename), (200, 200))
-               for filename in batch_x]), np.array(batch_y)
+        batch_x = self.x[idx * self.batch_size : (idx + 1) * self.batch_size]
+        batch_y = self.y[idx * self.batch_size : (idx + 1) * self.batch_size]
+        return batch_x, batch_y
 
-sequence = CIFAR10Sequence(filenames, labels, batch_size)
-model.fit(sequence, epochs=10)
+
+train_py_dataset = ExamplePyDataset(x_train, y_train, batch_size=32)
+val_py_dataset = ExamplePyDataset(x_val, y_val, batch_size=32)
 ```
 
+To fit the model, pass the dataset instead as the `x` argument (no need for a `y`
+argument since the dataset includes the targets), and pass the validation dataset
+as the `validation_data` argument. And no need for the `batch_size` argument, since
+the dataset is already batched!
+
+
+```python
+model = get_compiled_model()
+model.fit(train_py_dataset, batch_size=64, validation_data=val_py_dataset, epochs=1)
+```
+
+<div class="k-default-codeblock">
+```
+ 1563/1563 ━━━━━━━━━━━━━━━━━━━━ 1s 443us/step - loss: 0.5217 - sparse_categorical_accuracy: 0.8473 - val_loss: 0.1576 - val_sparse_categorical_accuracy: 0.9525
+
+<keras.src.callbacks.history.History at 0x2f9c8d120>
+
+```
+</div>
+Evaluating the model is just as easy:
+
+
+```python
+model.evaluate(val_py_dataset)
+```
+
+<div class="k-default-codeblock">
+```
+ 313/313 ━━━━━━━━━━━━━━━━━━━━ 0s 157us/step - loss: 0.1821 - sparse_categorical_accuracy: 0.9450
+
+[0.15764616429805756, 0.9524999856948853]
+
+```
+</div>
+Importantly, `PyDataset` objects support three common constructor arguments
+that handle the parallel processing configuration:
+
+- `workers`: Number of workers to use in multithreading or
+    multiprocessing. Typically, you'd set it to the number of
+    cores on your CPU.
+- `use_multiprocessing`: Whether to use Python multiprocessing for
+    parallelism. Setting this to `True` means that your
+    dataset will be replicated in multiple forked processes.
+    This is necessary to gain compute-level (rather than I/O level)
+    benefits from parallelism. However it can only be set to
+    `True` if your dataset can be safely pickled.
+- `max_queue_size`: Maximum number of batches to keep in the queue
+    when iterating over the dataset in a multithreaded or
+    multipricessed setting.
+    You can reduce this value to reduce the CPU memory consumption of
+    your dataset. It defaults to 10.
+
+By default, multiprocessing is disabled (`use_multiprocessing=False`) and only
+one thread is used. You should make sure to only turn on `use_multiprocessing` if
+your code is running inside a Python `if __name__ == "__main__":` block in order
+to avoid issues.
+
+Here's a 4-thread, non-multiprocessed example:
+
+
+```python
+train_py_dataset = ExamplePyDataset(x_train, y_train, batch_size=32, workers=4)
+val_py_dataset = ExamplePyDataset(x_val, y_val, batch_size=32, workers=4)
+
+model = get_compiled_model()
+model.fit(train_py_dataset, batch_size=64, validation_data=val_py_dataset, epochs=1)
+```
+
+<div class="k-default-codeblock">
+```
+ 1563/1563 ━━━━━━━━━━━━━━━━━━━━ 1s 561us/step - loss: 0.5146 - sparse_categorical_accuracy: 0.8516 - val_loss: 0.1623 - val_sparse_categorical_accuracy: 0.9514
+
+<keras.src.callbacks.history.History at 0x2e7fd5ea0>
+
+```
+</div>
+---
+## Training & evaluation using PyTorch `DataLoader` objects
+
+All built-in training and evaluation APIs are also compatible with `torch.utils.data.Dataset` and
+`torch.utils.data.DataLoader` objects -- regardless of whether you're using the PyTorch backend,
+or the JAX or TensorFlow backends. Let's take a look at a simple example.
+
+Unlike `PyDataset` which are batch-centric, PyTorch `Dataset` objects are sample-centric:
+the `__len__` method returns the number of samples,
+and the `__getitem__` method returns a specific sample.
+
+
+```python
+
+class ExampleTorchDataset(torch.utils.data.Dataset):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        return self.x[idx], self.y[idx]
+
+
+train_torch_dataset = ExampleTorchDataset(x_train, y_train)
+val_torch_dataset = ExampleTorchDataset(x_val, y_val)
+```
+
+To use a PyTorch Dataset, you need to wrap it into a `Dataloader` which takes care
+of batching and shuffling:
+
+
+```python
+train_dataloader = torch.utils.data.DataLoader(
+    train_torch_dataset, batch_size=32, shuffle=True
+)
+val_dataloader = torch.utils.data.DataLoader(
+    val_torch_dataset, batch_size=32, shuffle=True
+)
+```
+
+Now you can use them in the Keras API just like any other iterator:
+
+
+```python
+model = get_compiled_model()
+model.fit(train_dataloader, batch_size=64, validation_data=val_dataloader, epochs=1)
+model.evaluate(val_dataloader)
+```
+
+<div class="k-default-codeblock">
+```
+ 1563/1563 ━━━━━━━━━━━━━━━━━━━━ 1s 575us/step - loss: 0.5051 - sparse_categorical_accuracy: 0.8568 - val_loss: 0.1613 - val_sparse_categorical_accuracy: 0.9528
+ 313/313 ━━━━━━━━━━━━━━━━━━━━ 0s 278us/step - loss: 0.1551 - sparse_categorical_accuracy: 0.9541
+
+[0.16209803521633148, 0.9527999758720398]
+
+```
+</div>
 ---
 ## Using sample weighting and class weighting
 
@@ -931,8 +929,6 @@ is the digit "5" in the MNIST dataset).
 
 
 ```python
-import numpy as np
-
 class_weight = {
     0: 1.0,
     1: 1.0,
@@ -956,9 +952,9 @@ model.fit(x_train, y_train, class_weight=class_weight, batch_size=64, epochs=1)
 <div class="k-default-codeblock">
 ```
 Fit with class weight
-782/782 [==============================] - 1s 666us/step - loss: 0.3807 - sparse_categorical_accuracy: 0.8995
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 534us/step - loss: 0.6205 - sparse_categorical_accuracy: 0.8375
 
-<keras.callbacks.History at 0x2df398400>
+<keras.src.callbacks.history.History at 0x298d44eb0>
 
 ```
 </div>
@@ -994,9 +990,9 @@ model.fit(x_train, y_train, sample_weight=sample_weight, batch_size=64, epochs=1
 <div class="k-default-codeblock">
 ```
 Fit with sample weight
-782/782 [==============================] - 1s 614us/step - loss: 0.3681 - sparse_categorical_accuracy: 0.9027
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 546us/step - loss: 0.6397 - sparse_categorical_accuracy: 0.8388
 
-<keras.callbacks.History at 0x2c7915d20>
+<keras.src.callbacks.history.History at 0x298e066e0>
 
 ```
 </div>
@@ -1020,9 +1016,9 @@ model.fit(train_dataset, epochs=1)
 
 <div class="k-default-codeblock">
 ```
-782/782 [==============================] - 1s 613us/step - loss: 0.3641 - sparse_categorical_accuracy: 0.9051
+ 782/782 ━━━━━━━━━━━━━━━━━━━━ 1s 651us/step - loss: 0.5971 - sparse_categorical_accuracy: 0.8445
 
-<keras.callbacks.History at 0x2c79ceef0>
+<keras.src.callbacks.history.History at 0x312854100>
 
 ```
 </div>
@@ -1072,7 +1068,7 @@ keras.utils.plot_model(model, "multi_input_and_output_model.png", show_shapes=Tr
 
 
     
-![png](/img/guides/training_with_built_in_methods/training_with_built_in_methods_64_0.png)
+![png](/img/guides/training_with_built_in_methods/training_with_built_in_methods_73_0.png)
     
 
 
@@ -1084,17 +1080,13 @@ the loss functions as a list:
 ```python
 model.compile(
     optimizer=keras.optimizers.RMSprop(1e-3),
-    loss=[keras.losses.MeanSquaredError(), keras.losses.CategoricalCrossentropy()],
+    loss=[
+        keras.losses.MeanSquaredError(),
+        keras.losses.CategoricalCrossentropy(),
+    ],
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 If we only passed a single loss function to the model, the same loss function would be
 applied to every output (which is not appropriate here).
 
@@ -1104,7 +1096,10 @@ Likewise for metrics:
 ```python
 model.compile(
     optimizer=keras.optimizers.RMSprop(1e-3),
-    loss=[keras.losses.MeanSquaredError(), keras.losses.CategoricalCrossentropy()],
+    loss=[
+        keras.losses.MeanSquaredError(),
+        keras.losses.CategoricalCrossentropy(),
+    ],
     metrics=[
         [
             keras.metrics.MeanAbsolutePercentageError(),
@@ -1115,13 +1110,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 Since we gave names to our output layers, we could also specify per-output losses and
 metrics via a dict:
 
@@ -1143,13 +1131,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 We recommend the use of explicit names and dicts if you have more than 2 outputs.
 
 It's possible to give different weights to different output-specific losses (for
@@ -1175,13 +1156,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 You could also choose not to compute a loss for certain outputs, if these outputs are
 meant for prediction but not for training:
 
@@ -1200,15 +1174,6 @@ model.compile(
 )
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 Passing data to a multi-input or multi-output model in `fit()` works in a similar way as
 specifying a loss function in compile: you can pass **lists of NumPy arrays** (with
 1:1 mapping to the outputs that received a loss function) or **dicts mapping output
@@ -1218,7 +1183,10 @@ names to NumPy arrays**.
 ```python
 model.compile(
     optimizer=keras.optimizers.RMSprop(1e-3),
-    loss=[keras.losses.MeanSquaredError(), keras.losses.CategoricalCrossentropy()],
+    loss=[
+        keras.losses.MeanSquaredError(),
+        keras.losses.CategoricalCrossentropy(),
+    ],
 )
 
 # Generate dummy NumPy data
@@ -1241,13 +1209,10 @@ model.fit(
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.RMSprop`.
+ 4/4 ━━━━━━━━━━━━━━━━━━━━ 0s 62ms/step - loss: 18.0146
+ 4/4 ━━━━━━━━━━━━━━━━━━━━ 0s 56ms/step - loss: 17.6494
 
-4/4 [==============================] - 0s 2ms/step - loss: 19.4325 - score_output_loss: 0.6934 - class_output_loss: 18.7392
-4/4 [==============================] - 0s 2ms/step - loss: 20.7377 - score_output_loss: 0.4496 - class_output_loss: 20.2881
-
-<keras.callbacks.History at 0x2e828bc10>
+<keras.src.callbacks.history.History at 0x31a6c5810>
 
 ```
 </div>
@@ -1269,9 +1234,9 @@ model.fit(train_dataset, epochs=1)
 
 <div class="k-default-codeblock">
 ```
-2/2 [==============================] - 0s 3ms/step - loss: 21.2040 - score_output_loss: 0.3316 - class_output_loss: 20.8724
+ 2/2 ━━━━━━━━━━━━━━━━━━━━ 0s 197ms/step - loss: 17.8578
 
-<keras.callbacks.History at 0x2df3992d0>
+<keras.src.callbacks.history.History at 0x17c7e5690>
 
 ```
 </div>
@@ -1322,18 +1287,22 @@ model.fit(
 <div class="k-default-codeblock">
 ```
 Epoch 1/20
-625/625 [==============================] - 1s 818us/step - loss: 0.3753 - sparse_categorical_accuracy: 0.8942 - val_loss: 0.2394 - val_sparse_categorical_accuracy: 0.9268
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 1s 622us/step - loss: 0.6245 - sparse_categorical_accuracy: 0.8275 - val_loss: 0.2231 - val_sparse_categorical_accuracy: 0.9330
 Epoch 2/20
-625/625 [==============================] - 0s 702us/step - loss: 0.1770 - sparse_categorical_accuracy: 0.9474 - val_loss: 0.1911 - val_sparse_categorical_accuracy: 0.9415
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 404us/step - loss: 0.1809 - sparse_categorical_accuracy: 0.9460 - val_loss: 0.1727 - val_sparse_categorical_accuracy: 0.9476
 Epoch 3/20
-625/625 [==============================] - 0s 700us/step - loss: 0.1276 - sparse_categorical_accuracy: 0.9616 - val_loss: 0.1567 - val_sparse_categorical_accuracy: 0.9534
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 398us/step - loss: 0.1336 - sparse_categorical_accuracy: 0.9598 - val_loss: 0.1564 - val_sparse_categorical_accuracy: 0.9545
 Epoch 4/20
-625/625 [==============================] - 0s 703us/step - loss: 0.0996 - sparse_categorical_accuracy: 0.9714 - val_loss: 0.1486 - val_sparse_categorical_accuracy: 0.9562
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 400us/step - loss: 0.1012 - sparse_categorical_accuracy: 0.9699 - val_loss: 0.1502 - val_sparse_categorical_accuracy: 0.9570
 Epoch 5/20
-625/625 [==============================] - 0s 714us/step - loss: 0.0813 - sparse_categorical_accuracy: 0.9750 - val_loss: 0.1481 - val_sparse_categorical_accuracy: 0.9564
-Epoch 5: early stopping
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 403us/step - loss: 0.0835 - sparse_categorical_accuracy: 0.9748 - val_loss: 0.1436 - val_sparse_categorical_accuracy: 0.9589
+Epoch 6/20
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 396us/step - loss: 0.0699 - sparse_categorical_accuracy: 0.9783 - val_loss: 0.1484 - val_sparse_categorical_accuracy: 0.9577
+Epoch 7/20
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 402us/step - loss: 0.0603 - sparse_categorical_accuracy: 0.9814 - val_loss: 0.1406 - val_sparse_categorical_accuracy: 0.9629
+Epoch 7: early stopping
 
-<keras.callbacks.History at 0x171cf7700>
+<keras.src.callbacks.history.History at 0x31ae37c10>
 
 ```
 </div>
@@ -1401,22 +1370,27 @@ callbacks = [
     )
 ]
 model.fit(
-    x_train, y_train, epochs=2, batch_size=64, callbacks=callbacks, validation_split=0.2
+    x_train,
+    y_train,
+    epochs=2,
+    batch_size=64,
+    callbacks=callbacks,
+    validation_split=0.2,
 )
 ```
 
 <div class="k-default-codeblock">
 ```
 Epoch 1/2
-574/625 [==========================>...] - ETA: 0s - loss: 0.3947 - sparse_categorical_accuracy: 0.8879
-Epoch 1: val_loss improved from inf to 0.24554, saving model to mymodel_1.keras
-625/625 [==============================] - 1s 846us/step - loss: 0.3792 - sparse_categorical_accuracy: 0.8921 - val_loss: 0.2455 - val_sparse_categorical_accuracy: 0.9262
+ 559/625 ━━━━━━━━━━━━━━━━━[37m━━━  0s 360us/step - loss: 0.6490 - sparse_categorical_accuracy: 0.8209
+Epoch 1: val_loss improved from inf to 0.22393, saving model to mymodel_1.keras
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 1s 577us/step - loss: 0.6194 - sparse_categorical_accuracy: 0.8289 - val_loss: 0.2239 - val_sparse_categorical_accuracy: 0.9340
 Epoch 2/2
-572/625 [==========================>...] - ETA: 0s - loss: 0.1777 - sparse_categorical_accuracy: 0.9475
-Epoch 2: val_loss improved from 0.24554 to 0.17778, saving model to mymodel_2.keras
-625/625 [==============================] - 0s 726us/step - loss: 0.1765 - sparse_categorical_accuracy: 0.9477 - val_loss: 0.1778 - val_sparse_categorical_accuracy: 0.9484
+ 565/625 ━━━━━━━━━━━━━━━━━━[37m━━  0s 355us/step - loss: 0.1816 - sparse_categorical_accuracy: 0.9476
+Epoch 2: val_loss improved from 0.22393 to 0.16868, saving model to mymodel_2.keras
+ 625/625 ━━━━━━━━━━━━━━━━━━━━ 0s 411us/step - loss: 0.1806 - sparse_categorical_accuracy: 0.9479 - val_loss: 0.1687 - val_sparse_categorical_accuracy: 0.9494
 
-<keras.callbacks.History at 0x2ecf3fa90>
+<keras.src.callbacks.history.History at 0x2e5cb7250>
 
 ```
 </div>
@@ -1426,8 +1400,6 @@ gets randomly interrupted. Here's a basic example:
 
 
 ```python
-import os
-
 # Prepare a directory to store all the checkpoints.
 checkpoint_dir = "./ckpt"
 if not os.path.exists(checkpoint_dir):
@@ -1460,9 +1432,9 @@ model.fit(x_train, y_train, epochs=1, callbacks=callbacks)
 <div class="k-default-codeblock">
 ```
 Creating a new model
-1563/1563 [==============================] - 1s 592us/step - loss: 0.3022 - sparse_categorical_accuracy: 0.9122
+ 1563/1563 ━━━━━━━━━━━━━━━━━━━━ 1s 390us/step - loss: 0.4910 - sparse_categorical_accuracy: 0.8623
 
-<keras.callbacks.History at 0x2eddbbe20>
+<keras.src.callbacks.history.History at 0x2e5c454e0>
 
 ```
 </div>
@@ -1496,12 +1468,6 @@ lr_schedule = keras.optimizers.schedules.ExponentialDecay(
 optimizer = keras.optimizers.RMSprop(learning_rate=lr_schedule)
 ```
 
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.RMSprop` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.RMSprop`.
-
-```
-</div>
 Several built-in schedules are available: `ExponentialDecay`, `PiecewiseConstantDecay`,
 `PolynomialDecay`, and `InverseTimeDecay`.
 
@@ -1516,7 +1482,7 @@ thus achieve this pattern by using a callback that modifies the current learning
 on the optimizer. In fact, this is even built-in as the `ReduceLROnPlateau` callback.
 
 ---
-## Visualizing loss and metrics during training
+## Visualizing loss and metrics during training with TensorBoard
 
 The best way to keep an eye on your model during training is to use
 [TensorBoard](https://www.tensorflow.org/tensorboard) -- a browser-based application
@@ -1557,7 +1523,7 @@ keras.callbacks.TensorBoard(
 
 <div class="k-default-codeblock">
 ```
-<keras.callbacks.TensorBoard at 0x2ed0318a0>
+<keras.src.callbacks.tensorboard.TensorBoard at 0x31b0188b0>
 
 ```
 </div>

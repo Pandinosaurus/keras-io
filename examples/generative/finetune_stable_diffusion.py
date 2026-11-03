@@ -6,6 +6,7 @@ Last modified: 2023/01/13
 Description: Fine-tuning Stable Diffusion using a custom image-caption dataset.
 Accelerator: GPU
 """
+
 """
 ## Introduction
 
@@ -24,7 +25,7 @@ The following resources can be helpful if you're looking for more information in
 It's highly recommended that you use a GPU with at least 30GB of memory to execute
 the code.
 
-By the end of the guide, you'll be able to generate images of interesting pokemons:
+By the end of the guide, you'll be able to generate images of interesting Pokémon:
 
 ![custom-pokemons](https://i.imgur.com/X4m614M.png)
 
@@ -33,8 +34,9 @@ at least TensorFlow 2.11 in order to use AdamW with mixed precision.
 """
 
 """shell
-pip install keras-cv==0.4.0 -q
+pip install keras-cv==0.6.0 -q
 pip install -U tensorflow -q
+pip install keras-core -q
 """
 
 """
@@ -129,6 +131,7 @@ MAX_PROMPT_LENGTH = 77
 
 # Load the tokenizer.
 tokenizer = SimpleTokenizer()
+
 
 #  Method to tokenize and pad the tokens.
 def process_text(caption):
@@ -325,9 +328,9 @@ class Trainer(tf.keras.Model):
 
     def get_timestep_embedding(self, timestep, dim=320, max_period=10000):
         half = dim // 2
-        log_max_preiod = tf.math.log(tf.cast(max_period, tf.float32))
+        log_max_period = tf.math.log(tf.cast(max_period, tf.float32))
         freqs = tf.math.exp(
-            -log_max_preiod * tf.range(0, half, dtype=tf.float32) / half
+            -log_max_period * tf.range(0, half, dtype=tf.float32) / half
         )
         args = tf.convert_to_tensor([timestep], dtype=tf.float32) * freqs
         embedding = tf.concat([tf.math.cos(args), tf.math.sin(args)], 0)
@@ -374,7 +377,7 @@ USE_MP = True
 if USE_MP:
     keras.mixed_precision.set_global_policy("mixed_float16")
 
-image_encoder = ImageEncoder(RESOLUTION, RESOLUTION)
+image_encoder = ImageEncoder()
 diffusion_ft_trainer = Trainer(
     diffusion_model=DiffusionModel(RESOLUTION, RESOLUTION, MAX_PROMPT_LENGTH),
     # Remove the top layer from the encoder, which cuts off the variance and only
@@ -507,4 +510,9 @@ We'd like to acknowledge the GCP Credit support from ML Developer Programs' team
 Google. We'd like to thank the Hugging Face team for providing the
 [fine-tuning script](https://github.com/huggingface/diffusers/blob/main/examples/text_to_image/train_text_to_image.py)
 . It's very readable and easy to understand.
+"""
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
 """

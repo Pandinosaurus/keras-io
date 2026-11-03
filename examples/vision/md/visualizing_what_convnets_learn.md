@@ -26,9 +26,13 @@ pattern that the filter responds to.
 
 
 ```python
+import os
+
+os.environ["KERAS_BACKEND"] = "tensorflow"
+
+import keras
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
 
 # The dimensions of our input image
 img_width = 180
@@ -51,13 +55,6 @@ layer = model.get_layer(name=layer_name)
 feature_extractor = keras.Model(inputs=model.inputs, outputs=layer.output)
 ```
 
-<div class="k-default-codeblock">
-```
-2022-06-13 21:18:46.774381: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
-To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
-
-```
-</div>
 ---
 ## Set up the gradient ascent process
 
@@ -111,7 +108,7 @@ center-cropping it, and restricting it to the [0, 255] range.
 
 def initialize_image():
     # We start from a gray image with some random noise
-    img = tf.random.uniform((1, img_width, img_height, 3))
+    img = tf.random.uniform((1, img_height, img_width, 3))
     # ResNet50V2 expects inputs in the range [-1, +1].
     # Here we scale our random inputs to [-0.125, +0.125]
     return (img - 0.5) * 0.25
@@ -199,16 +196,16 @@ cropped_width = img_width - 25 * 2
 cropped_height = img_height - 25 * 2
 width = n * cropped_width + (n - 1) * margin
 height = n * cropped_height + (n - 1) * margin
-stitched_filters = np.zeros((width, height, 3))
+stitched_filters = np.zeros((height, width, 3))
 
 # Fill the picture with our saved filters
 for i in range(n):
     for j in range(n):
         img = all_imgs[i * n + j]
         stitched_filters[
-            (cropped_width + margin) * i : (cropped_width + margin) * i + cropped_width,
-            (cropped_height + margin) * j : (cropped_height + margin) * j
-            + cropped_height,
+            (cropped_height + margin) * i : (cropped_height + margin) * i + cropped_height,
+            (cropped_width + margin) * j : (cropped_width + margin) * j
+            + cropped_width,
             :,
         ] = img
 keras.utils.save_img("stiched_filters.png", stitched_filters)
@@ -299,6 +296,6 @@ See also
 [this old blog post](https://blog.keras.io/how-convolutional-neural-networks-see-the-world.html)
 for analysis and interpretation.
 
-Example available on HuggingFace.
-
-[![Generic badge](https://img.shields.io/badge/🤗%20Spaces-What%20Convnets%20Learn-black.svg)](https://huggingface.co/spaces/keras-io/what-convnets-learn)
+---
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 10: Interpreting what ConvNets learn](https://deeplearningwithpython.io/chapters/chapter10_interpreting-what-convnets-learn)

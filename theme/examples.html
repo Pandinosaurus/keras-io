@@ -1,9 +1,10 @@
 {% if legend %}
 <p><div class="example-highlight">★</div> = Good starter example</p>
+<p><div class="example-highlight"><b>V3</b></div> = Keras 3 example</p>
 {% endif %}
 
 {% for category in categories %}
-	<h2><a href="{{category.path}}">{{category.title}}</a></h2>
+	<h2 class="example-category-title"><a href="{{category.path}}">{{category.title}}</a></h2>
 
 	{% if category.subcategories %}
 		{% for subcategory in category.subcategories %}
@@ -15,6 +16,11 @@
 					<div class="example-card">
 						{% if example.highlight %}
 						<div class="example-highlight">★</div>
+						{% endif %}
+						{% if example.keras_3 %}
+						<div class="example-highlight"><b>V3</b></div>
+						{% else %}
+						<div class="example-highlight">V2</div>
 						{% endif %}
 						<div class="example-card-title">
 							{{example.title}}
@@ -36,5 +42,5 @@
 		{% endfor %}
 	{% endif %}
 
-	<hr>
+	<hr class="examples-separator">
 {% endfor %}

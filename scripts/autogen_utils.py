@@ -2,9 +2,17 @@ import re
 import string
 import markdown
 import copy
+import pathlib
+import os
+
+import pasta
+from pasta.base import scope
 
 
 def save_file(path, content):
+    parent = pathlib.Path(path).parent
+    if not os.path.exists(parent):
+        os.makedirs(parent)
     f = open(path, "w", encoding="utf8")
     f.write(content)
     f.close()
@@ -77,10 +85,21 @@ def render_markdown_to_html(md_content):
             "tables",
             "codehilite",
             "mdx_truly_sane_lists",
+            "smarty",
+            "pymdownx.arithmatex",
         ],
         extension_configs={
             "codehilite": {
                 "guess_lang": False,
+            },
+            "smarty": {
+                "smart_dashes": True,
+                "smart_quotes": False,
+                "smart_angled_quotes": False,
+                "smart_ellipses": False,
+            },
+            "pymdownx.arithmatex": {
+                "generic": True,
             },
         },
     )
@@ -98,3 +117,39 @@ def set_active_flag_in_nav_entry(entry, relative_url):
     ]
     entry["children"] = children
     return entry
+
+
+def find_all_symbols(path, packages):
+    """Parse a Python file and find all symbols from specific packages.
+
+    Args:
+        path: the path to the Python file
+        packages: collection of Python package, for instance ["keras"]
+
+    Returns:
+        a collection of symbols found in the Python code, for instance
+        ["keras", "keras.layers", "keras.layers.Dense"]
+    """
+    with open(path, "r") as src_file:
+        src = src_file.read()
+
+    try:
+        tree = pasta.parse(src)
+    except Exception:
+        return None
+    s = scope.analyze(tree)
+    symbols = set()
+
+    def explore(path, attrs):
+        symbols.add(path)
+        for name, attr in attrs.items():
+            new_path = path + "." + name
+            explore(new_path, attr.attrs)
+
+    for package in packages:
+        refs = s.external_references.get(package, [])
+        for ref in refs:
+            if ref.name_ref is not None:
+                explore(package, ref.name_ref.attrs)
+
+    return symbols

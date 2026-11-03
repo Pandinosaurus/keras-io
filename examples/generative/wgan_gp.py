@@ -2,7 +2,7 @@
 Title: WGAN-GP overriding `Model.train_step`
 Author: [A_K_Nain](https://twitter.com/A_K_Nain)
 Date created: 2020/05/9
-Last modified: 2020/05/9
+Last modified: 2023/08/3
 Description: Implementation of Wasserstein GAN with Gradient Penalty.
 Accelerator: GPU
 """
@@ -28,12 +28,13 @@ that keeps the L2 norm of the discriminator gradients close to 1.
 """
 ## Setup
 """
+import os
 
-import numpy as np
+os.environ["KERAS_BACKEND"] = "tensorflow"
+
+import keras
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-
+from keras import layers
 
 """
 ## Prepare the Fashion-MNIST data
@@ -67,7 +68,7 @@ using strided convolutions, this can result in a shape with odd dimensions.
 For example,
 `(28, 28) -> Conv_s2 -> (14, 14) -> Conv_s2 -> (7, 7) -> Conv_s2 ->(3, 3)`.
 
-While peforming upsampling in the generator part of the network, we won't get
+While performing upsampling in the generator part of the network, we won't get
 the same input shape as the original images if we aren't careful. To avoid this,
 we will do something much simpler:
 - In the discriminator: "zero pad" the input to change the shape to `(32, 32, 1)`
@@ -271,7 +272,7 @@ class WGAN(keras.Model):
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batch_size, 1, 1, 1], 0.0, 1.0)
+        alpha = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
         diff = fake_images - real_images
         interpolated = real_images + alpha * diff
 
@@ -283,7 +284,9 @@ class WGAN(keras.Model):
         # 2. Calculate the gradients w.r.t to this interpolated image.
         grads = gp_tape.gradient(pred, [interpolated])[0]
         # 3. Calculate the norm of the gradients.
-        norm = tf.sqrt(tf.reduce_sum(tf.square(grads), axis=[1, 2, 3]))
+        norm = tf.sqrt(
+            tf.reduce_sum(tf.square(grads), axis=[1, 2, 3]) + keras.backend.epsilon()
+        )
         gp = tf.reduce_mean((norm - 1.0) ** 2)
         return gp
 
@@ -388,6 +391,7 @@ discriminator_optimizer = keras.optimizers.Adam(
     learning_rate=0.0002, beta_1=0.5, beta_2=0.9
 )
 
+
 # Define the loss functions for the discriminator,
 # which should be (fake_loss - real_loss).
 # We will add the gradient penalty later to this loss function.
@@ -402,7 +406,7 @@ def generator_loss(fake_img):
     return -tf.reduce_mean(fake_img)
 
 
-# Set the number of epochs for trainining.
+# Set the number of epochs for training.
 epochs = 20
 
 # Instantiate the customer `GANMonitor` Keras callback.
@@ -438,9 +442,6 @@ display(Image("generated_img_1_19.png"))
 display(Image("generated_img_2_19.png"))
 
 """
-Example available on HuggingFace.
-
-| Trained Model | Demo |
-| :--: | :--: |
-| [![Generic badge](https://img.shields.io/badge/🤗%20Model-WGAN%20GP-black.svg)](https://huggingface.co/keras-io/WGAN-GP) | [![Generic badge](https://img.shields.io/badge/🤗%20Spaces-WGAN%20GP-black.svg)](https://huggingface.co/spaces/keras-io/WGAN-GP) |
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
 """

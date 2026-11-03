@@ -205,8 +205,8 @@ def graph_to_molecule(graph):
 
     # Add bonds between atoms in molecule; based on the upper triangles
     # of the [symmetric] adjacency tensor
-    (bonds_ij, atoms_i, atoms_j) = np.where(np.triu(adjacency) == 1)
-    for (bond_ij, atom_i, atom_j) in zip(bonds_ij, atoms_i, atoms_j):
+    bonds_ij, atoms_i, atoms_j = np.where(np.triu(adjacency) == 1)
+    for bond_ij, atom_i, atom_j in zip(bonds_ij, atoms_i, atoms_j):
         if atom_i == atom_j or bond_ij == BOND_DIM - 1:
             continue
         bond_type = bond_mapping[bond_ij]
@@ -400,7 +400,6 @@ class RelationalGraphConvLayer(keras.layers.Layer):
 def GraphDiscriminator(
     gconv_units, dense_units, dropout_rate, adjacency_shape, feature_shape
 ):
-
     adjacency = keras.layers.Input(shape=adjacency_shape)
     features = keras.layers.Input(shape=feature_shape)
 
@@ -466,7 +465,6 @@ class GraphWGAN(keras.Model):
         self.metric_discriminator = keras.metrics.Mean(name="loss_dis")
 
     def train_step(self, inputs):
-
         if isinstance(inputs[0], tuple):
             inputs = inputs[0]
 
@@ -598,7 +596,7 @@ looking molecules! Notice, in contrast to the
 molecules in this tutorial seems really high, which is great!
 
 **What we've learned, and prospects**. In this tutorial, a generative model for molecular
-graphs was succesfully implemented, which allowed us to generate novel molecules. In the
+graphs was successfully implemented, which allowed us to generate novel molecules. In the
 future, it would be interesting to implement generative models that can modify existing
 molecules (for instance, to optimize solubility or protein-binding of an existing
 molecule). For that however, a reconstruction loss would likely be needed, which is
@@ -610,4 +608,9 @@ Example available on HuggingFace
 | Trained Model | Demo |
 | :--: | :--: |
 | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Model-wgan%20graphs-black.svg)](https://huggingface.co/keras-io/wgan-molecular-graphs) | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-wgan%20graphs-black.svg)](https://huggingface.co/spaces/keras-io/Generating-molecular-graphs-by-WGAN-GP) |
+"""
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 17: Image generation](https://deeplearningwithpython.io/chapters/chapter17_image-generation)
 """

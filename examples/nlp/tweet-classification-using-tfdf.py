@@ -46,7 +46,7 @@ import matplotlib.pyplot as plt
 """
 ## Get the data
 
-The Dataset is avalaible on [Kaggle](https://www.kaggle.com/c/nlp-getting-started)
+The Dataset is available on [Kaggle](https://www.kaggle.com/c/nlp-getting-started)
 
 Dataset description:
 
@@ -294,4 +294,9 @@ The TensorFlow Decision Forests package provides powerful models
 that work especially well with structured data. In our experiments,
 the Gradient Boosted Tree model with pretrained embeddings achieved 81.6%
 test accuracy while the plain Gradient Boosted Tree model had 54.4% accuracy.
+"""
+
+"""
+## Relevant Chapters from Deep Learning with Python
+- [Chapter 14: Text classification](https://deeplearningwithpython.io/chapters/chapter14_text-classification)
 """

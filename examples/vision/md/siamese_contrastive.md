@@ -2,7 +2,7 @@
 
 **Author:** Mehdi<br>
 **Date created:** 2021/05/06<br>
-**Last modified:** 2022/09/10<br>
+**Last modified:** 2026/01/28<br>
 **Description:** Similarity learning using a siamese network trained with a contrastive loss.
 
 
@@ -29,9 +29,9 @@ the class segmentation of the training inputs.
 ```python
 import random
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+import keras
+from keras import layers
+from keras import ops
 import matplotlib.pyplot as plt
 ```
 
@@ -58,14 +58,6 @@ x_test = x_test.astype("float32")
 
 ```
 
-<div class="k-default-codeblock">
-```
-Downloading data from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
-11493376/11490434 [==============================] - 1s 0us/step
-11501568/11490434 [==============================] - 1s 0us/step
-
-```
-</div>
 ---
 ## Define training and validation sets
 
@@ -230,14 +222,13 @@ def visualize(pairs, labels, to_show=6, num_col=3, predictions=None, test=False)
     # Plot the images
     fig, axes = plt.subplots(num_row, num_col, figsize=(5, 5))
     for i in range(to_show):
-
         # If the number of rows is 1, the axes array is one-dimensional
         if num_row == 1:
             ax = axes[i % num_col]
         else:
             ax = axes[i // num_col, i % num_col]
 
-        ax.imshow(tf.concat([pairs[i][0], pairs[i][1]], axis=1), cmap="gray")
+        ax.imshow(ops.concatenate([pairs[i][0], pairs[i][1]], axis=1), cmap="gray")
         ax.set_axis_off()
         if test:
             ax.set_title("True: {} | Pred: {:.5f}".format(labels[i], predictions[i][0]))
@@ -300,6 +291,7 @@ merged output is fed to the final network.
 
 
 ```python
+
 # Provided two tensors t1 and t2
 # Euclidean distance = sqrt(sum(square(t1-t2)))
 def euclidean_distance(vects):
@@ -312,24 +304,47 @@ def euclidean_distance(vects):
         Tensor containing euclidean distance
         (as floating point value) between vectors.
     """
-
     x, y = vects
-    sum_square = tf.math.reduce_sum(tf.math.square(x - y), axis=1, keepdims=True)
-    return tf.math.sqrt(tf.math.maximum(sum_square, tf.keras.backend.epsilon()))
+    sum_square = ops.sum(ops.square(x - y), axis=1, keepdims=True)
+    return ops.sqrt(ops.maximum(sum_square, keras.backend.epsilon()))
 
 
-input = layers.Input((28, 28, 1))
-x = tf.keras.layers.BatchNormalization()(input)
-x = layers.Conv2D(4, (5, 5), activation="tanh")(x)
-x = layers.AveragePooling2D(pool_size=(2, 2))(x)
-x = layers.Conv2D(16, (5, 5), activation="tanh")(x)
-x = layers.AveragePooling2D(pool_size=(2, 2))(x)
-x = layers.Flatten()(x)
+def create_embedding_network():
+    """Creates a convolutional neural network for image embedding.
 
-x = tf.keras.layers.BatchNormalization()(x)
-x = layers.Dense(10, activation="tanh")(x)
-embedding_network = keras.Model(input, x)
+    The network takes a grayscale image as input and outputs a 10-dimensional
+    latent representation (embedding). It uses a series of Conv2D and
+    AveragePooling2D layers to extract features, followed by a Dense layer
+    with tanh activation.
 
+    Architecture:
+        - Input: (28, 28, 1)
+        - BatchNormalization
+        - Conv2D (4 filters, 5x5 kernel, tanh)
+        - AveragePooling2D (2x2)
+        - Conv2D (16 filters, 5x5 kernel, tanh)
+        - AveragePooling2D (2x2)
+        - Flatten
+        - BatchNormalization
+        - Dense (10 units, tanh)
+
+    Returns:
+        keras.Model: A Functional API model instance mapping (28, 28, 1) images
+            to 10D embedding vectors.
+    """
+    inputs = layers.Input((28, 28, 1))
+    x = layers.BatchNormalization()(inputs)
+    x = layers.Conv2D(4, (5, 5), activation="tanh")(x)
+    x = layers.AveragePooling2D(pool_size=(2, 2))(x)
+    x = layers.Conv2D(16, (5, 5), activation="tanh")(x)
+    x = layers.AveragePooling2D(pool_size=(2, 2))(x)
+    x = layers.Flatten()(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(10, activation="tanh")(x)
+    return keras.Model(inputs, x, name="embedding")
+
+
+embedding_network = create_embedding_network()
 
 input_1 = layers.Input((28, 28, 1))
 input_2 = layers.Input((28, 28, 1))
@@ -340,10 +355,9 @@ input_2 = layers.Input((28, 28, 1))
 tower_1 = embedding_network(input_1)
 tower_2 = embedding_network(input_2)
 
-merge_layer = layers.Lambda(euclidean_distance)([tower_1, tower_2])
-normal_layer = tf.keras.layers.BatchNormalization()(merge_layer)
-output_layer = layers.Dense(1, activation="sigmoid")(normal_layer)
-siamese = keras.Model(inputs=[input_1, input_2], outputs=output_layer)
+# Distance is the output, remove the final Dense Sigmoid layer
+distance = layers.Lambda(euclidean_distance)([tower_1, tower_2])
+siamese = keras.Model(inputs=[input_1, input_2], outputs=distance)
 
 ```
 
@@ -378,13 +392,39 @@ def loss(margin=1):
             A tensor containing contrastive loss as floating point value.
         """
 
-        square_pred = tf.math.square(y_pred)
-        margin_square = tf.math.square(tf.math.maximum(margin - (y_pred), 0))
-        return tf.math.reduce_mean(
-            (1 - y_true) * square_pred + (y_true) * margin_square
-        )
+        square_pred = ops.square(y_pred)
+        margin_square = ops.square(ops.maximum(margin - (y_pred), 0))
+        return ops.mean((1 - y_true) * square_pred + (y_true) * margin_square)
 
     return contrastive_loss
+
+```
+
+---
+## Define accuracy metric
+
+
+```python
+
+def accuracy(y_true, y_pred):
+    """Computes the accuracy of the predictions.
+
+    Arguments:
+        y_true: List of labels, each label is of type float32.
+        y_pred: List of predictions of same length as of y_true,
+                each label is of type float32.
+
+    Returns:
+        A tensor containing accuracy as floating point value.
+    """
+    y_true = ops.cast(y_true, "float32")
+
+    y_true = ops.reshape(y_true, [-1])
+    y_pred = ops.reshape(y_pred, [-1])
+
+    # 0 for similar (<0.5), 1 for dissimilar (>0.5)
+    preds = ops.cast(y_pred > 0.5, "float32")
+    return ops.mean(ops.equal(y_true, preds))
 
 ```
 
@@ -393,40 +433,55 @@ def loss(margin=1):
 
 
 ```python
-siamese.compile(loss=loss(margin=margin), optimizer="RMSprop", metrics=["accuracy"])
+siamese.compile(loss=loss(margin=margin), optimizer="RMSprop", metrics=[accuracy])
 siamese.summary()
 
 ```
 
-<div class="k-default-codeblock">
-```
-Model: "model_1"
-__________________________________________________________________________________________________
- Layer (type)                   Output Shape         Param #     Connected to                     
-==================================================================================================
- input_2 (InputLayer)           [(None, 28, 28, 1)]  0           []                               
-                                                                                                  
- input_3 (InputLayer)           [(None, 28, 28, 1)]  0           []                               
-                                                                                                  
- model (Functional)             (None, 10)           5318        ['input_2[0][0]',                
-                                                                  'input_3[0][0]']                
-                                                                                                  
- lambda (Lambda)                (None, 1)            0           ['model[0][0]',                  
-                                                                  'model[1][0]']                  
-                                                                                                  
- batch_normalization_2 (BatchNo  (None, 1)           4           ['lambda[0][0]']                 
- rmalization)                                                                                     
-                                                                                                  
- dense_1 (Dense)                (None, 1)            2           ['batch_normalization_2[0][0]']  
-                                                                                                  
-==================================================================================================
-Total params: 5,324
-Trainable params: 4,808
-Non-trainable params: 516
-__________________________________________________________________________________________________
 
-```
-</div>
+<pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="font-weight: bold">Model: "functional"</span>
+</pre>
+
+
+
+
+<pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃<span style="font-weight: bold"> Layer (type)        </span>┃<span style="font-weight: bold"> Output Shape      </span>┃<span style="font-weight: bold">    Param # </span>┃<span style="font-weight: bold"> Connected to      </span>┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ input_layer_1       │ (<span style="color: #00d7ff; text-decoration-color: #00d7ff">None</span>, <span style="color: #00af00; text-decoration-color: #00af00">28</span>, <span style="color: #00af00; text-decoration-color: #00af00">28</span>, <span style="color: #00af00; text-decoration-color: #00af00">1</span>) │          <span style="color: #00af00; text-decoration-color: #00af00">0</span> │ -                 │
+│ (<span style="color: #0087ff; text-decoration-color: #0087ff">InputLayer</span>)        │                   │            │                   │
+├─────────────────────┼───────────────────┼────────────┼───────────────────┤
+│ input_layer_2       │ (<span style="color: #00d7ff; text-decoration-color: #00d7ff">None</span>, <span style="color: #00af00; text-decoration-color: #00af00">28</span>, <span style="color: #00af00; text-decoration-color: #00af00">28</span>, <span style="color: #00af00; text-decoration-color: #00af00">1</span>) │          <span style="color: #00af00; text-decoration-color: #00af00">0</span> │ -                 │
+│ (<span style="color: #0087ff; text-decoration-color: #0087ff">InputLayer</span>)        │                   │            │                   │
+├─────────────────────┼───────────────────┼────────────┼───────────────────┤
+│ embedding           │ (<span style="color: #00d7ff; text-decoration-color: #00d7ff">None</span>, <span style="color: #00af00; text-decoration-color: #00af00">10</span>)        │      <span style="color: #00af00; text-decoration-color: #00af00">5,318</span> │ input_layer_1[<span style="color: #00af00; text-decoration-color: #00af00">0</span>]… │
+│ (<span style="color: #0087ff; text-decoration-color: #0087ff">Functional</span>)        │                   │            │ input_layer_2[<span style="color: #00af00; text-decoration-color: #00af00">0</span>]… │
+├─────────────────────┼───────────────────┼────────────┼───────────────────┤
+│ lambda (<span style="color: #0087ff; text-decoration-color: #0087ff">Lambda</span>)     │ (<span style="color: #00d7ff; text-decoration-color: #00d7ff">None</span>, <span style="color: #00af00; text-decoration-color: #00af00">1</span>)         │          <span style="color: #00af00; text-decoration-color: #00af00">0</span> │ embedding[<span style="color: #00af00; text-decoration-color: #00af00">0</span>][<span style="color: #00af00; text-decoration-color: #00af00">0</span>],  │
+│                     │                   │            │ embedding[<span style="color: #00af00; text-decoration-color: #00af00">1</span>][<span style="color: #00af00; text-decoration-color: #00af00">0</span>]   │
+└─────────────────────┴───────────────────┴────────────┴───────────────────┘
+</pre>
+
+
+
+
+<pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="font-weight: bold"> Total params: </span><span style="color: #00af00; text-decoration-color: #00af00">5,318</span> (20.77 KB)
+</pre>
+
+
+
+
+<pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="font-weight: bold"> Trainable params: </span><span style="color: #00af00; text-decoration-color: #00af00">4,804</span> (18.77 KB)
+</pre>
+
+
+
+
+<pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="font-weight: bold"> Non-trainable params: </span><span style="color: #00af00; text-decoration-color: #00af00">514</span> (2.01 KB)
+</pre>
+
+
+
 ---
 ## Train the model
 
@@ -444,28 +499,47 @@ history = siamese.fit(
 <div class="k-default-codeblock">
 ```
 Epoch 1/10
-3750/3750 [==============================] - 32s 8ms/step - loss: 0.0889 - accuracy: 0.8784 - val_loss: 0.0369 - val_accuracy: 0.9520
-Epoch 2/10
-3750/3750 [==============================] - 34s 9ms/step - loss: 0.0522 - accuracy: 0.9308 - val_loss: 0.0299 - val_accuracy: 0.9610
-Epoch 3/10
-3750/3750 [==============================] - 33s 9ms/step - loss: 0.0447 - accuracy: 0.9406 - val_loss: 0.0234 - val_accuracy: 0.9700
-Epoch 4/10
-3750/3750 [==============================] - 34s 9ms/step - loss: 0.0388 - accuracy: 0.9496 - val_loss: 0.0216 - val_accuracy: 0.9719
-Epoch 5/10
-3750/3750 [==============================] - 31s 8ms/step - loss: 0.0372 - accuracy: 0.9517 - val_loss: 0.0178 - val_accuracy: 0.9768
-Epoch 6/10
-3750/3750 [==============================] - 33s 9ms/step - loss: 0.0331 - accuracy: 0.9572 - val_loss: 0.0186 - val_accuracy: 0.9761
-Epoch 7/10
-3750/3750 [==============================] - 34s 9ms/step - loss: 0.0322 - accuracy: 0.9584 - val_loss: 0.0185 - val_accuracy: 0.9766
-Epoch 8/10
-3750/3750 [==============================] - 35s 9ms/step - loss: 0.0309 - accuracy: 0.9598 - val_loss: 0.0167 - val_accuracy: 0.9786
-Epoch 9/10
-3750/3750 [==============================] - 34s 9ms/step - loss: 0.0304 - accuracy: 0.9604 - val_loss: 0.0152 - val_accuracy: 0.9804
-Epoch 10/10
-3750/3750 [==============================] - 31s 8ms/step - loss: 0.0304 - accuracy: 0.9607 - val_loss: 0.0146 - val_accuracy: 0.9815
 
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.7299 - loss: 0.2343 - val_accuracy: 0.8378 - val_loss: 0.1243
+
+Epoch 2/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.8192 - loss: 0.1348 - val_accuracy: 0.8734 - val_loss: 0.1023
+
+Epoch 3/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 7s 2ms/step - accuracy: 0.8594 - loss: 0.1134 - val_accuracy: 0.8969 - val_loss: 0.0888
+
+Epoch 4/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.8843 - loss: 0.1004 - val_accuracy: 0.9243 - val_loss: 0.0751
+
+Epoch 5/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9047 - loss: 0.0893 - val_accuracy: 0.9313 - val_loss: 0.0706
+
+Epoch 6/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9191 - loss: 0.0814 - val_accuracy: 0.9378 - val_loss: 0.0651
+
+Epoch 7/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9284 - loss: 0.0759 - val_accuracy: 0.9465 - val_loss: 0.0604
+
+Epoch 8/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9364 - loss: 0.0724 - val_accuracy: 0.9478 - val_loss: 0.0603
+
+Epoch 9/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9402 - loss: 0.0700 - val_accuracy: 0.9538 - val_loss: 0.0550
+
+Epoch 10/10
+
+3750/3750 ━━━━━━━━━━━━━━━━━━━━ 8s 2ms/step - accuracy: 0.9423 - loss: 0.0675 - val_accuracy: 0.9554 - val_loss: 0.0536
 ```
 </div>
+
 ---
 ## Visualize results
 
@@ -503,13 +577,13 @@ plt_metric(history=history.history, metric="loss", title="Contrastive Loss")
 
 
     
-![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_36_0.png)
+![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_38_0.png)
     
 
 
 
     
-![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_36_1.png)
+![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_38_1.png)
     
 
 
@@ -522,13 +596,15 @@ results = siamese.evaluate([x_test_1, x_test_2], labels_test)
 print("test loss, test acc:", results)
 ```
 
+    
 <div class="k-default-codeblock">
 ```
-625/625 [==============================] - 2s 3ms/step - loss: 0.0132 - accuracy: 0.9830
-test loss, test acc: [0.013175321742892265, 0.9830499887466431]
+625/625 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step - accuracy: 0.9577 - loss: 0.0515
 
+test loss, test acc: [0.05146418511867523, 0.9577000141143799]
 ```
 </div>
+
 ---
 ## Visualize the predictions
 
@@ -538,13 +614,13 @@ predictions = siamese.predict([x_test_1, x_test_2])
 visualize(pairs_test, labels_test, to_show=3, predictions=predictions, test=True)
 ```
 
-
     
-![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_40_0.png)
+<div class="k-default-codeblock">
+```
+625/625 ━━━━━━━━━━━━━━━━━━━━ 1s 1ms/step
+```
+</div>
+
+![png](/img/examples/vision/siamese_contrastive/siamese_contrastive_42_15.png)
     
 
-
-**Example available on HuggingFace**
-| Trained Model | Demo |
-| :--: | :--: |
-| [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Model-Siamese%20Network-black.svg)](https://huggingface.co/keras-io/siamese-contrastive) | [![Generic badge](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Siamese%20Network-black.svg)](https://huggingface.co/spaces/keras-io/siamese-contrastive) |

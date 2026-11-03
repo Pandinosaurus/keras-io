@@ -6,6 +6,8 @@ This repository hosts the code used to generate the [keras.io](https://keras.io)
 
 ```
 pip install -r requirements.txt
+# Update Keras version
+pip install -U keras
 cd scripts
 python autogen.py make
 python autogen.py serve
@@ -78,6 +80,7 @@ Author: (could be `Authors`: as well, and may contain markdown links)
 Date created: (date in yyyy/mm/dd format)
 Last modified: (date in yyyy/mm/dd format)
 Description: (one-line text description)
+Accelerator: (could be GPU, TPU, or None)
 ```
 
 To see examples of tutobooks, you can check out any `.py` file in `examples/` or `guides/`.

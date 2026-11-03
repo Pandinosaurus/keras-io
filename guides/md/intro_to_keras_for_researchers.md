@@ -16,7 +16,7 @@
 
 ```python
 import tensorflow as tf
-from tensorflow import keras
+import keras
 ```
 
 ---
@@ -150,8 +150,8 @@ print(a)
 <div class="k-default-codeblock">
 ```
 <tf.Variable 'Variable:0' shape=(2, 2) dtype=float32, numpy=
-array([[-0.11127437,  0.37391818],
-       [-0.53640217, -0.8033101 ]], dtype=float32)>
+array([[ 0.11058521,  0.55781174],
+       [-0.7643957 , -2.106184  ]], dtype=float32)>
 
 ```
 </div>
@@ -213,8 +213,8 @@ with tf.GradientTape() as tape:
 <div class="k-default-codeblock">
 ```
 tf.Tensor(
-[[-0.34171113 -0.348583  ]
- [ 0.54899895 -0.25350904]], shape=(2, 2), dtype=float32)
+[[0.6567579 0.4763136]
+ [0.9858142 0.3558683]], shape=(2, 2), dtype=float32)
 
 ```
 </div>
@@ -233,8 +233,8 @@ with tf.GradientTape() as tape:
 <div class="k-default-codeblock">
 ```
 tf.Tensor(
-[[-0.34171113 -0.348583  ]
- [ 0.54899895 -0.25350904]], shape=(2, 2), dtype=float32)
+[[0.6567579 0.4763136]
+ [0.9858142 0.3558683]], shape=(2, 2), dtype=float32)
 
 ```
 </div>
@@ -254,8 +254,8 @@ with tf.GradientTape() as outer_tape:
 <div class="k-default-codeblock">
 ```
 tf.Tensor(
-[[2.7081103 0.7274715]
- [0.4489885 1.2576567]], shape=(2, 2), dtype=float32)
+[[1.4240768  0.9168595 ]
+ [0.02550167 1.5579035 ]], shape=(2, 2), dtype=float32)
 
 ```
 </div>
@@ -274,7 +274,8 @@ The `Layer` class is the fundamental abstraction in Keras.
 A `Layer` encapsulates a state (weights) and some computation
 (defined in the call method).
 
-A simple layer looks like this:
+A simple layer looks like this.
+The `self.add_weight()` method gives you a shortcut for creating weights:
 
 
 ```python
@@ -284,15 +285,10 @@ class Linear(keras.layers.Layer):
 
     def __init__(self, units=32, input_dim=32):
         super().__init__()
-        w_init = tf.random_normal_initializer()
-        self.w = tf.Variable(
-            initial_value=w_init(shape=(input_dim, units), dtype="float32"),
-            trainable=True,
+        self.w = self.add_weight(
+            shape=(input_dim, units), initializer="random_normal", trainable=True
         )
-        b_init = tf.zeros_initializer()
-        self.b = tf.Variable(
-            initial_value=b_init(shape=(units,), dtype="float32"), trainable=True
-        )
+        self.b = self.add_weight(shape=(units,), initializer="zeros", trainable=True)
 
     def call(self, inputs):
         return tf.matmul(inputs, self.w) + self.b
@@ -325,9 +321,10 @@ fancier ones like `Conv3DTranspose` or `ConvLSTM2D`. Be smart about reusing
 built-in functionality.
 
 ---
-## Layer weight creation
+## Layer weight creation in `build(input_shape)`
 
-The `self.add_weight()` method gives you a shortcut for creating weights:
+It's often a good idea to defer weight creation to the `build()` method, so
+that you don't need to specify the input dim/shape at layer construction time:
 
 
 ```python
@@ -353,7 +350,7 @@ class Linear(keras.layers.Layer):
         return tf.matmul(inputs, self.w) + self.b
 
 
-# Instantiate our lazy layer.
+# Instantiate our layer.
 linear_layer = Linear(4)
 
 # This will also call `build(input_shape)` and create the weights.
@@ -371,7 +368,7 @@ you can modify the gradients before using them, if you need to.
 
 ```python
 # Prepare a dataset.
-(x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+(x_train, y_train), _ = keras.datasets.mnist.load_data()
 dataset = tf.data.Dataset.from_tensor_slices(
     (x_train.reshape(60000, 784).astype("float32") / 255, y_train)
 )
@@ -381,10 +378,10 @@ dataset = dataset.shuffle(buffer_size=1024).batch(64)
 linear_layer = Linear(10)
 
 # Instantiate a logistic loss function that expects integer targets.
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
 # Instantiate an optimizer.
-optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3)
+optimizer = keras.optimizers.SGD(learning_rate=1e-3)
 
 # Iterate over the batches of the dataset.
 for step, (x, y) in enumerate(dataset):
@@ -409,18 +406,16 @@ for step, (x, y) in enumerate(dataset):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.SGD` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.SGD`.
-
-Step: 0 Loss: 2.339794874191284
-Step: 100 Loss: 2.2681260108947754
-Step: 200 Loss: 2.1939074993133545
-Step: 300 Loss: 2.0258545875549316
-Step: 400 Loss: 1.895912528038025
-Step: 500 Loss: 1.9022576808929443
-Step: 600 Loss: 1.7397000789642334
-Step: 700 Loss: 1.682852029800415
-Step: 800 Loss: 1.7028923034667969
-Step: 900 Loss: 1.5907071828842163
+Step: 0 Loss: 2.4040849208831787
+Step: 100 Loss: 2.2059175968170166
+Step: 200 Loss: 2.1891114711761475
+Step: 300 Loss: 2.0599637031555176
+Step: 400 Loss: 2.021326780319214
+Step: 500 Loss: 1.9289535284042358
+Step: 600 Loss: 1.758760929107666
+Step: 700 Loss: 1.7004988193511963
+Step: 800 Loss: 1.7745165824890137
+Step: 900 Loss: 1.6547822952270508
 
 ```
 </div>
@@ -440,7 +435,9 @@ class ComputeSum(keras.layers.Layer):
     def __init__(self, input_dim):
         super().__init__()
         # Create a non-trainable weight.
-        self.total = tf.Variable(initial_value=tf.zeros((input_dim,)), trainable=False)
+        self.total = self.add_weight(
+            initializer="zeros", shape=(input_dim,), trainable=False
+        )
 
     def call(self, inputs):
         self.total.assign_add(tf.reduce_sum(inputs, axis=0))
@@ -579,7 +576,7 @@ print(mlp.losses)  # List containing one float32 scalar
 
 <div class="k-default-codeblock">
 ```
-[<tf.Tensor: shape=(), dtype=float32, numpy=0.1054272>]
+[<tf.Tensor: shape=(), dtype=float32, numpy=0.24654198>]
 
 ```
 </div>
@@ -600,7 +597,7 @@ assert len(mlp.losses) == 1  # No accumulation.
 # Let's demonstrate how to use these losses in a training loop.
 
 # Prepare a dataset.
-(x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+(x_train, y_train), _ = keras.datasets.mnist.load_data()
 dataset = tf.data.Dataset.from_tensor_slices(
     (x_train.reshape(60000, 784).astype("float32") / 255, y_train)
 )
@@ -610,8 +607,8 @@ dataset = dataset.shuffle(buffer_size=1024).batch(64)
 mlp = SparseMLP()
 
 # Loss and optimizer.
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3)
+loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+optimizer = keras.optimizers.SGD(learning_rate=1e-3)
 
 for step, (x, y) in enumerate(dataset):
     with tf.GradientTape() as tape:
@@ -637,32 +634,30 @@ for step, (x, y) in enumerate(dataset):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.SGD` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.SGD`.
-
-Step: 0 Loss: 6.72915506362915
-Step: 100 Loss: 2.616196632385254
-Step: 200 Loss: 2.4459407329559326
-Step: 300 Loss: 2.3743927478790283
-Step: 400 Loss: 2.3421053886413574
-Step: 500 Loss: 2.3347532749176025
-Step: 600 Loss: 2.329498529434204
-Step: 700 Loss: 2.3266661167144775
-Step: 800 Loss: 2.3347079753875732
-Step: 900 Loss: 2.3129796981811523
+Step: 0 Loss: 5.629672050476074
+Step: 100 Loss: 2.6190948486328125
+Step: 200 Loss: 2.4041364192962646
+Step: 300 Loss: 2.385746479034424
+Step: 400 Loss: 2.3336474895477295
+Step: 500 Loss: 2.3487167358398438
+Step: 600 Loss: 2.3277230262756348
+Step: 700 Loss: 2.3347654342651367
+Step: 800 Loss: 2.318131446838379
+Step: 900 Loss: 2.313291549682617
 
 ```
 </div>
 ---
 ## Keeping track of training metrics
 
-Keras offers a broad range of built-in metrics, like `tf.keras.metrics.AUC`
-or `tf.keras.metrics.PrecisionAtRecall`. It's also easy to create your
+Keras offers a broad range of built-in metrics, like `keras.metrics.AUC`
+or `keras.metrics.PrecisionAtRecall`. It's also easy to create your
 own metrics in a few lines of code.
 
 To use a metric in a custom training loop, you would:
 
-- Instantiate the metric object, e.g. `metric = tf.keras.metrics.AUC()`
-- Call its `metric.udpate_state(targets, predictions)` method for each batch of data
+- Instantiate the metric object, e.g. `metric = keras.metrics.AUC()`
+- Call its `metric.update_state(targets, predictions)` method for each batch of data
 - Query its result via `metric.result()`
 - Reset the metric's state at the end of an epoch or at the start of an evaluation via
 `metric.reset_state()`
@@ -672,7 +667,7 @@ Here's a simple example:
 
 ```python
 # Instantiate a metric object
-accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+accuracy = keras.metrics.SparseCategoricalAccuracy()
 
 # Prepare our layer, loss, and optimizer.
 model = keras.Sequential(
@@ -682,8 +677,8 @@ model = keras.Sequential(
         keras.layers.Dense(10),
     ]
 )
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+optimizer = keras.optimizers.Adam(learning_rate=1e-3)
 
 for epoch in range(2):
     # Iterate over the batches of a dataset.
@@ -711,26 +706,24 @@ for epoch in range(2):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-
 Epoch: 0 Step: 0
-Total running accuracy so far: 0.188
+Total running accuracy so far: 0.047
 Epoch: 0 Step: 200
-Total running accuracy so far: 0.758
+Total running accuracy so far: 0.751
 Epoch: 0 Step: 400
-Total running accuracy so far: 0.828
+Total running accuracy so far: 0.826
 Epoch: 0 Step: 600
-Total running accuracy so far: 0.857
+Total running accuracy so far: 0.856
 Epoch: 0 Step: 800
-Total running accuracy so far: 0.873
+Total running accuracy so far: 0.872
 Epoch: 1 Step: 0
-Total running accuracy so far: 0.938
+Total running accuracy so far: 0.891
 Epoch: 1 Step: 200
-Total running accuracy so far: 0.938
+Total running accuracy so far: 0.936
 Epoch: 1 Step: 400
-Total running accuracy so far: 0.940
+Total running accuracy so far: 0.939
 Epoch: 1 Step: 600
-Total running accuracy so far: 0.941
+Total running accuracy so far: 0.940
 Epoch: 1 Step: 800
 Total running accuracy so far: 0.941
 
@@ -832,8 +825,8 @@ model = keras.Sequential(
         keras.layers.Dense(10),
     ]
 )
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+optimizer = keras.optimizers.Adam(learning_rate=1e-3)
 
 # Create a training step function.
 
@@ -849,7 +842,7 @@ def train_on_batch(x, y):
 
 
 # Prepare a dataset.
-(x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+(x_train, y_train), _ = keras.datasets.mnist.load_data()
 dataset = tf.data.Dataset.from_tensor_slices(
     (x_train.reshape(60000, 784).astype("float32") / 255, y_train)
 )
@@ -863,18 +856,16 @@ for step, (x, y) in enumerate(dataset):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-
-Step: 0 Loss: 2.365858316421509
-Step: 100 Loss: 0.6919876933097839
-Step: 200 Loss: 0.27754053473472595
-Step: 300 Loss: 0.47360336780548096
-Step: 400 Loss: 0.18255259096622467
-Step: 500 Loss: 0.31124019622802734
-Step: 600 Loss: 0.2792532444000244
-Step: 700 Loss: 0.36256417632102966
-Step: 800 Loss: 0.22643642127513885
-Step: 900 Loss: 0.15995879471302032
+Step: 0 Loss: 2.3094160556793213
+Step: 100 Loss: 0.53387850522995
+Step: 200 Loss: 0.3349820375442505
+Step: 300 Loss: 0.23337996006011963
+Step: 400 Loss: 0.304066926240921
+Step: 500 Loss: 0.180154949426651
+Step: 600 Loss: 0.4450702667236328
+Step: 700 Loss: 0.16045540571212769
+Step: 800 Loss: 0.27985841035842896
+Step: 900 Loss: 0.19074323773384094
 
 ```
 </div>
@@ -938,7 +929,7 @@ it the "Functional API"):
 # The functional API focused on defining per-sample transformations.
 # The model we create will automatically batch the per-sample transformations,
 # so that it can be called on batches of data.
-inputs = tf.keras.Input(shape=(16,), dtype="float32")
+inputs = keras.Input(shape=(16,), dtype="float32")
 
 # We call layers on these "type" objects
 # and they return updated types (new shapes/dtypes).
@@ -948,7 +939,7 @@ outputs = Linear(10)(x)
 
 # A functional `Model` can be defined by specifying inputs and outputs.
 # A model is itself a layer like any other.
-model = tf.keras.Model(inputs, outputs)
+model = keras.Model(inputs, outputs)
 
 # A functional model already has weights, before being called on any data.
 # That's because we defined its input shape in advance (in `Input`).
@@ -996,11 +987,11 @@ example above.
 
 
 ```python
-inputs = tf.keras.Input(shape=(784,), dtype="float32")
+inputs = keras.Input(shape=(784,), dtype="float32")
 x = keras.layers.Dense(32, activation="relu")(inputs)
 x = keras.layers.Dense(32, activation="relu")(x)
 outputs = keras.layers.Dense(10)(x)
-model = tf.keras.Model(inputs, outputs)
+model = keras.Model(inputs, outputs)
 
 # Specify the loss, optimizer, and metrics with `compile()`.
 model.compile(
@@ -1017,17 +1008,14 @@ model.evaluate(dataset)
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.Adam`.
-
 Epoch 1/2
-938/938 [==============================] - 1s 625us/step - loss: 0.3931 - sparse_categorical_accuracy: 0.8890
+938/938 [==============================] - 2s 1ms/step - loss: 0.3988 - sparse_categorical_accuracy: 0.8862
 Epoch 2/2
-938/938 [==============================] - 1s 622us/step - loss: 0.1860 - sparse_categorical_accuracy: 0.9453
-938/938 [==============================] - 0s 341us/step
-938/938 [==============================] - 0s 367us/step - loss: 0.1539 - sparse_categorical_accuracy: 0.9533
+938/938 [==============================] - 1s 1ms/step - loss: 0.1866 - sparse_categorical_accuracy: 0.9461
+938/938 [==============================] - 1s 803us/step
+938/938 [==============================] - 1s 903us/step - loss: 0.1536 - sparse_categorical_accuracy: 0.9543
 
-[0.15391898155212402, 0.9532666802406311]
+[0.15355238318443298, 0.9542833566665649]
 
 ```
 </div>
@@ -1075,7 +1063,7 @@ class CustomModel(keras.Model):
         return [self.loss_tracker, self.accuracy]
 
 
-inputs = tf.keras.Input(shape=(784,), dtype="float32")
+inputs = keras.Input(shape=(784,), dtype="float32")
 x = keras.layers.Dense(32, activation="relu")(inputs)
 x = keras.layers.Dense(32, activation="relu")(x)
 outputs = keras.layers.Dense(10)(x)
@@ -1086,14 +1074,12 @@ model.fit(dataset, epochs=2)
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-
 Epoch 1/2
-938/938 [==============================] - 1s 514us/step - loss: 0.4022 - accuracy: 0.8112
+938/938 [==============================] - 1s 1ms/step - loss: 0.3952 - accuracy: 0.8208
 Epoch 2/2
-938/938 [==============================] - 0s 515us/step - loss: 0.2089 - accuracy: 0.9343
+938/938 [==============================] - 1s 1ms/step - loss: 0.2055 - accuracy: 0.9364
 
-<keras.callbacks.History at 0x29e62e3e0>
+<keras.src.callbacks.History at 0x7f12882deb10>
 
 ```
 </div>
@@ -1135,7 +1121,7 @@ class Sampling(layers.Layer):
         z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
-        epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        epsilon = keras.backend.random_normal(shape=(batch, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
@@ -1214,11 +1200,11 @@ compile into a super fast graph function.
 vae = VariationalAutoEncoder(original_dim=784, intermediate_dim=64, latent_dim=32)
 
 # Loss and optimizer.
-loss_fn = tf.keras.losses.MeanSquaredError()
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+loss_fn = keras.losses.MeanSquaredError()
+optimizer = keras.optimizers.Adam(learning_rate=1e-3)
 
 # Prepare a dataset.
-(x_train, _), _ = tf.keras.datasets.mnist.load_data()
+(x_train, _), _ = keras.datasets.mnist.load_data()
 dataset = tf.data.Dataset.from_tensor_slices(
     x_train.reshape(60000, 784).astype("float32") / 255
 )
@@ -1255,103 +1241,22 @@ for step, x in enumerate(dataset):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-
-Step: 0 Loss: 0.3580949902534485
-Step: 100 Loss: 0.1271588603901391
-Step: 200 Loss: 0.10059373158572325
-Step: 300 Loss: 0.09024866822599573
-Step: 400 Loss: 0.08506722282850535
-Step: 500 Loss: 0.08182044965986482
-Step: 600 Loss: 0.07937284828025767
-Step: 700 Loss: 0.07802503153192844
-Step: 800 Loss: 0.07680399313606276
-Step: 900 Loss: 0.0758183566599125
-Step: 1000 Loss: 0.07485662428262112
+Step: 0 Loss: 0.327964723110199
+Step: 100 Loss: 0.1264294325420172
+Step: 200 Loss: 0.10020137063009822
+Step: 300 Loss: 0.08990733624989804
+Step: 400 Loss: 0.0848350128962512
+Step: 500 Loss: 0.081730601152855
+Step: 600 Loss: 0.07928250531066278
+Step: 700 Loss: 0.07791465763720058
+Step: 800 Loss: 0.07670121117217116
+Step: 900 Loss: 0.07572131670937025
+Step: 1000 Loss: 0.07478016477960212
 
 ```
 </div>
 As you can see, building and training this type of model in Keras
 is quick and painless.
-
-Now, you may find that the code above is somewhat verbose: we handle every little detail
-on our own, by hand. This gives the most flexibility, but it's also a bit of work.
-
-Let's take a look at what the Functional API version of
-our VAE looks like:
-
-
-```python
-original_dim = 784
-intermediate_dim = 64
-latent_dim = 32
-
-# Define encoder model.
-original_inputs = tf.keras.Input(shape=(original_dim,), name="encoder_input")
-x = layers.Dense(intermediate_dim, activation="relu")(original_inputs)
-z_mean = layers.Dense(latent_dim, name="z_mean")(x)
-z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
-z = Sampling()((z_mean, z_log_var))
-encoder = tf.keras.Model(inputs=original_inputs, outputs=z, name="encoder")
-
-# Define decoder model.
-latent_inputs = tf.keras.Input(shape=(latent_dim,), name="z_sampling")
-x = layers.Dense(intermediate_dim, activation="relu")(latent_inputs)
-outputs = layers.Dense(original_dim, activation="sigmoid")(x)
-decoder = tf.keras.Model(inputs=latent_inputs, outputs=outputs, name="decoder")
-
-# Define VAE model.
-outputs = decoder(z)
-vae = tf.keras.Model(inputs=original_inputs, outputs=outputs, name="vae")
-
-# Add KL divergence regularization loss.
-kl_loss = -0.5 * tf.reduce_mean(z_log_var - tf.square(z_mean) - tf.exp(z_log_var) + 1)
-vae.add_loss(kl_loss)
-```
-
-Much more concise, right?
-
-By the way, Keras also features built-in training & evaluation loops on its `Model` class
-(`fit()` and `evaluate()`). Check it out:
-
-
-```python
-# Loss and optimizer.
-loss_fn = tf.keras.losses.MeanSquaredError()
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
-
-# Prepare a dataset.
-(x_train, _), _ = tf.keras.datasets.mnist.load_data()
-dataset = tf.data.Dataset.from_tensor_slices(
-    x_train.reshape(60000, 784).astype("float32") / 255
-)
-dataset = dataset.map(lambda x: (x, x))  # Use x_train as both inputs & targets
-dataset = dataset.shuffle(buffer_size=1024).batch(32)
-
-# Configure the model for training.
-vae.compile(optimizer, loss=loss_fn)
-
-# Actually training the model.
-vae.fit(dataset, epochs=1)
-```
-
-<div class="k-default-codeblock">
-```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-WARNING:absl:There is a known slowdown when using v2.11+ Keras optimizers on M1/M2 Macs. Falling back to the legacy Keras optimizer, i.e., `tf.keras.optimizers.legacy.Adam`.
-
-1875/1875 [==============================] - 3s 1ms/step - loss: 0.0714
-
-<keras.callbacks.History at 0x2c73f0910>
-
-```
-</div>
-The use of the Functional API and `fit` reduces our example from 65 lines to 25 lines
-(including model definition & training). The Keras philosophy is to offer you
-productivity-boosting features like
-these, while simultaneously empowering you to write everything yourself to gain absolute
-control over every little detail. Like we did in the low-level training loop two
-paragraphs earlier.
 
 ---
 ## End-to-end experiment example 2: hypernetworks.
@@ -1408,11 +1313,11 @@ final classification loss
 
 ```python
 # Loss and optimizer.
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+optimizer = keras.optimizers.Adam(learning_rate=1e-4)
 
 # Prepare a dataset.
-(x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+(x_train, y_train), _ = keras.datasets.mnist.load_data()
 dataset = tf.data.Dataset.from_tensor_slices(
     (x_train.reshape(60000, 784).astype("float32") / 255, y_train)
 )
@@ -1484,19 +1389,17 @@ for step, (x, y) in enumerate(dataset):
 
 <div class="k-default-codeblock">
 ```
-WARNING:absl:At this time, the v2.11+ optimizer `tf.keras.optimizers.Adam` runs slowly on M1/M2 Macs, please use the legacy Keras optimizer instead, located at `tf.keras.optimizers.legacy.Adam`.
-
-Step: 0 Loss: 2.9760189056396484
-Step: 100 Loss: 2.5381786324600184
-Step: 200 Loss: 2.235966676725677
-Step: 300 Loss: 2.112266645776077
-Step: 400 Loss: 1.9635035995013101
-Step: 500 Loss: 1.8773559593907398
-Step: 600 Loss: 1.8203280925204104
-Step: 700 Loss: 1.773320673520015
-Step: 800 Loss: 1.7310391644066194
-Step: 900 Loss: 1.6813015580682764
-Step: 1000 Loss: 1.6270896273646922
+Step: 0 Loss: 1.2556400299072266
+Step: 100 Loss: 2.5476599238296544
+Step: 200 Loss: 2.1573401512346457
+Step: 300 Loss: 1.918845683104201
+Step: 400 Loss: 1.8333103110458693
+Step: 500 Loss: 1.7798502995807328
+Step: 600 Loss: 1.6786754470412841
+Step: 700 Loss: 1.603073729164222
+Step: 800 Loss: 1.532632532587611
+Step: 900 Loss: 1.499125787840248
+Step: 1000 Loss: 1.4645580406379608
 
 ```
 </div>
